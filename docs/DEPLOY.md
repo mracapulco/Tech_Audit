@@ -22,7 +22,7 @@ domínio: endereços e portas vêm todos do `.env`.
 | `API_PORT` | `3101` | `3001` (ou outra livre) |
 | `DB_PORT` | `5433` | `5432` (ou outra livre) |
 | `BIND_ADDRESS` | `0.0.0.0` | `0.0.0.0` (o HAProxy está em outra VM); `127.0.0.1` só se o proxy rodar na mesma máquina |
-| `PUBLIC_AGENT_URL` | `http://localhost:3101` ou `http://<IP do PC>:3101` | `https://ingest.audit.techmaster.inf.br` |
+| `PUBLIC_AGENT_URL` | `http://localhost:3101` ou `http://<IP do PC>:3101` | `https://ingest-audit.techmaster.inf.br` |
 | `COOKIE_SECURE` | `false` | `true` |
 | `POSTGRES_PASSWORD`, `BOOTSTRAP_ADMIN_*` | de teste | fortes e diferentes da homologação |
 
@@ -69,7 +69,7 @@ Os dados ficam no volume `db-data` e sobrevivem a atualizações e reinícios.
 
 - Coloque o portal e a API atrás do proxy reverso com HTTPS (Traefik, Nginx),
   por exemplo `audit.techmaster.inf.br` → portal (`PORTAL_PORT`) e
-  `ingest.audit.techmaster.inf.br` → porta dos agentes (`API_PORT`).
+  `ingest-audit.techmaster.inf.br` → porta dos agentes (`API_PORT`).
 - Publique para a internet só o proxy: as portas do portal e da API não devem
   ficar abertas direto, porque o IP do usuário no log de acesso vem do
   `X-Forwarded-For` que o proxy acrescenta.
@@ -88,7 +88,7 @@ acrescente as regras e, no fim do arquivo, os dois `backend`
 frontend https_in
     # ... bind :443 ssl crt ... e regras do Tech_Hub que já existem ...
     use_backend techaudit_portal if { hdr(host) -i audit.techmaster.inf.br }
-    use_backend techaudit_agentes if { hdr(host) -i ingest.audit.techmaster.inf.br }
+    use_backend techaudit_agentes if { hdr(host) -i ingest-audit.techmaster.inf.br }
 
 backend techaudit_portal
     # Apaga o X-Forwarded-For que vier do navegador e põe o IP real: sem
@@ -134,7 +134,7 @@ para `127.0.0.1:3000` (portal) e `127.0.0.1:3001` (agentes), repassando
 ### Configuração
 
 - No `.env`: `COOKIE_SECURE=true` (o login exige HTTPS) e
-  `PUBLIC_AGENT_URL=https://ingest.audit.techmaster.inf.br` (vai no
+  `PUBLIC_AGENT_URL=https://ingest-audit.techmaster.inf.br` (vai no
   `agent.json` gerado pelo portal).
 - Senhas fortes em `POSTGRES_PASSWORD` (só letras e números) e
   `BOOTSTRAP_ADMIN_PASSWORD`. Depois do primeiro login, as linhas

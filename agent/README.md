@@ -18,14 +18,14 @@ Baixe o MSI no portal, em **Agente** (só com login; o download fica no log de
 acesso). Com duplo clique abre o assistente em português, que pede:
 
 - **Endereço do servidor**: o que o portal mostra na mesma tela (em produção,
-  `https://ingest.audit.techmaster.inf.br`). Não precisa de `/v1/events`: o
+  `https://ingest-audit.techmaster.inf.br`). Não precisa de `/v1/events`: o
   agente completa sozinho.
 - **Token de instalação**: gerado na página da empresa, começa com `ta_enr_`.
 
 ### MSI sem telas (GPO ou script)
 
 ```powershell
-msiexec /i TechAuditAgent-0.3.0.msi /qn ENDPOINT="https://ingest.audit.techmaster.inf.br" ENROLLMENT_TOKEN="ta_enr_..."
+msiexec /i TechAuditAgent-0.3.0.msi /qn ENDPOINT="https://ingest-audit.techmaster.inf.br" ENROLLMENT_TOKEN="ta_enr_..."
 ```
 
 Sem `/qn` o assistente abre já preenchido com esses valores.
@@ -42,7 +42,7 @@ Sem `/qn` o assistente abre já preenchido com esses valores.
 ### Sem MSI
 
 ```powershell
-.\techaudit-agent.exe install -endpoint https://ingest.audit.techmaster.inf.br/v1/events -enrollment-token ta_enr_...
+.\techaudit-agent.exe install -endpoint https://ingest-audit.techmaster.inf.br/v1/events -enrollment-token ta_enr_...
 .\techaudit-agent.exe uninstall
 ```
 

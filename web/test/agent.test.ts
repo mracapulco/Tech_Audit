@@ -10,7 +10,7 @@ describe('instalação do agente', () => {
   });
 
   it('endereço e comando silencioso', () => {
-    assert.equal(agentServerUrl(' https://ingest.audit.techmaster.inf.br/ '), 'https://ingest.audit.techmaster.inf.br');
+    assert.equal(agentServerUrl(' https://ingest-audit.techmaster.inf.br/ '), 'https://ingest-audit.techmaster.inf.br');
     assert.equal(
       silentInstallCommand('TechAuditAgent-0.3.0.msi', 'http://192.168.0.10:3101/', 'ta_enr_abc'),
       'msiexec /i TechAuditAgent-0.3.0.msi /qn ENDPOINT="http://192.168.0.10:3101" ENROLLMENT_TOKEN="ta_enr_abc"',

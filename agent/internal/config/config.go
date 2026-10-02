@@ -17,7 +17,7 @@ import (
 
 // Config é o conteúdo do arquivo agent.json.
 type Config struct {
-	// Endpoint recebe os lotes via HTTP POST (ex.: https://ingest.audit.techmaster.inf.br/v1/events).
+	// Endpoint recebe os lotes via HTTP POST (ex.: https://ingest-audit.techmaster.inf.br/v1/events).
 	Endpoint string `json:"endpoint"`
 	// Token é enviado no cabeçalho "Authorization: Bearer <token>". Se vazio,
 	// o agente usa o token salvo em CredentialsFile ou se registra com
@@ -176,7 +176,7 @@ var defaultFilter = event.Filter{
 func checkEndpoint(endpoint string) error {
 	u, err := url.Parse(endpoint)
 	if err != nil || u.Host == "" {
-		return fmt.Errorf("endpoint inválido %q (ex.: https://ingest.audit.techmaster.inf.br/v1/events)", endpoint)
+		return fmt.Errorf("endpoint inválido %q (ex.: https://ingest-audit.techmaster.inf.br/v1/events)", endpoint)
 	}
 	switch u.Scheme {
 	case "https":

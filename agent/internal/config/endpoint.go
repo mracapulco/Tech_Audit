@@ -3,8 +3,8 @@ package config
 import "strings"
 
 // NormalizeEndpoint completa o endereço digitado no instalador gráfico:
-// "ingest.audit.techmaster.inf.br" ou "https://ingest.audit.techmaster.inf.br/"
-// viram "https://ingest.audit.techmaster.inf.br/v1/events". Um endereço que já
+// "ingest-audit.techmaster.inf.br" ou "https://ingest-audit.techmaster.inf.br/"
+// viram "https://ingest-audit.techmaster.inf.br/v1/events". Um endereço que já
 // tem caminho (ex.: .../v1/events, como nas versões anteriores) fica como está.
 func NormalizeEndpoint(s string) string {
 	s = strings.TrimSpace(s)

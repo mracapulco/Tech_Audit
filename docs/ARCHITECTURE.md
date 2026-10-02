@@ -394,7 +394,7 @@ Ferramentas: pnpm workspaces + Turborepo para a parte TypeScript; `go` modules n
 5. **Retenção**: opções padrão de 90 dias, 1 ano e 5 anos, mais valor personalizado em dias (seções 6.3 e 9.2).
 6. **Hospedagem**: dentro da Tech Master, em Docker (seção 3).
 7. **On-premises**: não haverá (seção 9.4).
-8. **Domínios**: `audit.techmaster.inf.br` (portal) e `ingest.audit.techmaster.inf.br` (agentes).
+8. **Domínios**: `audit.techmaster.inf.br` (portal) e `ingest-audit.techmaster.inf.br` (agentes; um nível só, para o certificado wildcard `*.techmaster.inf.br` cobrir).
 9. **Autenticação do agente**: token de longa duração durante o desenvolvimento e o piloto; migração para mTLS (certificado por agente, seção 5) antes da venda para clientes (fase 5).
 
 Não há decisões de arquitetura em aberto no momento.
