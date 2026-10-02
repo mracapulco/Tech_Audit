@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ago, health, labelIndexes, niceMax, userText } from '../lib/dashboard.ts';
-import { actionGroups, eventActionText, presetRange } from '../lib/filters.ts';
+import { actionGroups, eventActionText, newPathText, presetRange } from '../lib/filters.ts';
 
 describe('painel', () => {
   const now = new Date('2026-10-02T12:00:00Z');
@@ -55,5 +55,11 @@ describe('painel', () => {
     assert.equal(eventActionText({ action: 'permission_changed', actions: [], count: 1200 }), 'Alteração de permissão · 1.200 operações');
     assert.equal(eventActionText({ action: null, actions: ['write', 'delete'] }), 'Escrita (direito), Exclusão (direito)');
     assert.equal(eventActionText({ action: null, actions: [] }), '-');
+  });
+
+  it('destino do evento esconde o nome interno da Lixeira', () => {
+    assert.equal(newPathText({ action: 'recycled', new_path: 'C:\\$Recycle.Bin\\S-1-5-21-1\\$RIUD4PU.txt' }), 'Lixeira do Windows');
+    assert.equal(newPathText({ action: 'renamed', new_path: 'C:\\a\\b.txt' }), 'C:\\a\\b.txt');
+    assert.equal(newPathText({ action: 'modified', new_path: null }), null);
   });
 });

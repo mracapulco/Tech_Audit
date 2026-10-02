@@ -5,7 +5,7 @@ import { TimelineChart, type TimelinePoint } from '@/components/timeline-chart';
 import { TopBar } from '@/components/top-bar';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
 import { ago, formatInt, health, userText } from '@/lib/dashboard';
-import { actionLabel, eventActionText, formatDateTime, localToIso, PERIOD_PRESETS, presetRange, screenQuery, type SearchParams } from '@/lib/filters';
+import { actionLabel, eventActionText, newPathText, formatDateTime, localToIso, PERIOD_PRESETS, presetRange, screenQuery, type SearchParams } from '@/lib/filters';
 import { formatBytes, formatLastDay, licenseStatus } from '@/lib/format';
 
 export const metadata: Metadata = { title: 'Painel · Tech Audit' };
@@ -227,7 +227,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                           <td>{eventActionText(e)}</td>
                           <td className="path">
                             {e.path ?? '-'}
-                            {e.new_path && <span className="new-path">→ {e.new_path}</span>}
+                            {newPathText(e) && <span className="new-path">→ {newPathText(e)}</span>}
                           </td>
                         </tr>
                       ))}

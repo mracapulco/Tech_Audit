@@ -115,7 +115,7 @@ describe('portal: painel e relatórios', { skip }, () => {
         ev(3, 2, 'maria.souza', fin + 'balanco.docx', 'deleted'),
         ev(4, 25, 'maria.souza', 'D:\\Shares\\RH\\folha.pdf', 'permission_changed', { count: 12 }),
         ev(5, 26, 'joao.silva', 'D:\\Shares\\RH\\folha.pdf', 'read', { outcome: 'failure' }),
-        ev(6, 49, 'ana.lima', fin + 'velho.txt', 'recycled'),
+        ev(6, 49, 'ana.lima', fin + 'velho.txt', 'recycled', { new_path: 'D:\\$Recycle.Bin\\S-1-5-21-1\\$RAB12CD.txt' }),
         ev(7, 49.5, 'ana.lima', fin + 'a.txt', 'renamed', { new_path: fin + 'b.txt' }),
         // Agente antigo (0.1): conta pelos direitos brutos.
         oldEv(8, 50, 'carlos.pereira', fin + 'antigo.txt', ['delete']),
@@ -280,6 +280,7 @@ describe('portal: painel e relatórios', { skip }, () => {
       [byId('a.txt').actions, byId('a.txt').new_path],
       ['Renomeação', 'D:\\Shares\\Financeiro\\b.txt'],
     );
+    assert.equal(byId('velho.txt').new_path, 'Lixeira do Windows');
     const perm = t.rows.find((r: { actions: string }) => r.actions === 'Alteração de permissão');
     assert.equal(perm.count, 12);
     assert.equal(byId('antigo.txt').actions, 'Exclusão (direito)');

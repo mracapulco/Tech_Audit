@@ -40,6 +40,13 @@ export function eventActionText(e: { action?: string | null; actions: string[]; 
   return base + item + times;
 }
 
+// Destino mostrado abaixo do caminho. Na Lixeira o agente manda o nome interno
+// ($Recycle.Bin\SID\$Rxxxx), que não diz nada a quem lê; o CSV mantém o caminho bruto.
+export function newPathText(e: { action?: string | null; new_path?: string | null }): string | null {
+  if (!e.new_path) return null;
+  return e.action === 'recycled' ? 'Lixeira do Windows' : e.new_path;
+}
+
 // Brasília é UTC-3 o ano inteiro desde 2019 (sem horário de verão).
 const BRT_OFFSET_MS = -3 * 3600_000;
 

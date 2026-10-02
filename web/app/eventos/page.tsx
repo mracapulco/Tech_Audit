@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
-import { apiParams, eventActionText, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
+import { apiParams, eventActionText, newPathText, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
 import { ActionSelect } from '@/components/action-select';
 import { TopBar } from '@/components/top-bar';
 
@@ -160,7 +160,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                       ) : (
                         '-'
                       )}
-                      {e.new_path && <span className="new-path">→ {e.new_path}</span>}
+                      {newPathText(e) && <span className="new-path">→ {newPathText(e)}</span>}
                     </td>
                     <td className={e.success ? 'ok' : 'fail'}>{e.success ? 'Sucesso' : 'Falha'}</td>
                     <td>{e.source_ip ?? '-'}</td>

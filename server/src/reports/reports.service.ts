@@ -122,7 +122,8 @@ export class ReportsService {
         server: r.server,
         user: userText(r),
         path: r.path,
-        new_path: r.new_path,
+        // Na Lixeira o destino é o nome interno ($Recycle.Bin\SID\$R...); o CSV mantém o bruto.
+        new_path: r.action === 'recycled' && r.new_path ? 'Lixeira do Windows' : r.new_path,
         actions: r.action ? actionLabel(r.action) : r.actions.map(actionLabel).join(', '),
         count: r.count,
         result: r.success ? 'Sucesso' : 'Falha',
