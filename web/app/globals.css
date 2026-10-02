@@ -188,7 +188,20 @@ details.edit[open] { flex-basis: 100%; }
 /* Marca e tela de login */
 .logo { display: inline-flex; align-items: center; gap: 8px; }
 .logo svg { flex: none; }
-.logo-name { font-weight: 900; letter-spacing: -0.01em; }
+.logo-mark { --lm-tile: #f2f1f9; --lm-a: var(--brand-purple); --lm-inner: var(--brand-purple-dark); --lm-dot: #2c2960; }
+.logo-mark .lm-tile { fill: var(--lm-tile); }
+.logo-mark .lm-arc, .logo-mark .lm-inner { fill: none; stroke-linecap: round; }
+.logo-mark .lm-arc { stroke-width: 4.5; }
+.logo-mark .lm-a { stroke: var(--lm-a); }
+.logo-mark .lm-b { stroke: var(--brand-cyan); }
+.logo-mark .lm-c { stroke: var(--brand-green); }
+.logo-mark .lm-inner { stroke: var(--lm-inner); stroke-width: 3.5; }
+.logo-mark .lm-dot { fill: var(--lm-dot); }
+.logo-lg .logo-mark { --lm-tile: #2c2960; --lm-a: #a9a5e6; --lm-inner: #fff; --lm-dot: #fff; }
+@media (prefers-color-scheme: dark) {
+  .logo-mark { --lm-tile: #2c2960; --lm-a: #a9a5e6; --lm-inner: #fff; --lm-dot: #fff; }
+}
+.logo-name { font-weight: 800; letter-spacing: -0.02em; }
 .brand-link { color: var(--text); text-decoration: none; }
 .logo-lg { gap: 12px; color: #fff; }
 .logo-lg .logo-name { font-size: 1.5rem; }
@@ -210,7 +223,7 @@ details.edit[open] { flex-basis: 100%; }
 }
 .login-brand > * { position: relative; }
 .login-pitch { max-width: 440px; }
-.login-pitch h2 { color: #fff; font-size: 2rem; line-height: 1.2; font-weight: 900; margin: 0 0 24px; letter-spacing: -0.01em; }
+.login-pitch h2 { color: #fff; font-size: 2rem; line-height: 1.2; font-weight: 800; margin: 0 0 24px; letter-spacing: -0.02em; }
 .login-pitch ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .login-pitch li { position: relative; padding-left: 30px; line-height: 1.45; }
 .login-pitch li::before {
@@ -222,7 +235,7 @@ details.edit[open] { flex-basis: 100%; }
 
 .login-panel { display: grid; place-items: center; padding: 32px 24px; background: var(--surface); }
 .login { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; }
-.login h1 { margin: 0 0 4px; font-size: 1.8rem; font-weight: 900; }
+.login h1 { margin: 0 0 4px; font-size: 1.7rem; font-weight: 700; letter-spacing: -0.01em; }
 .login p { margin: 0; }
 .login input { padding: 10px 12px; }
 .login-mark { display: none; }
