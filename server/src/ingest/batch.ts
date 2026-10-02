@@ -21,6 +21,14 @@ export interface AgentEvent {
   accessMask: number | null;
   success: boolean;
   handleId: string | null;
+  // Ação lógica do agente 0.2+ (created, deleted, renamed...); nulo nos agentes antigos.
+  action: string | null;
+  newPath: string | null; // destino de renomear, mover ou Lixeira
+  itemType: 'file' | 'folder' | null;
+  count: number; // operações iguais agregadas neste evento
+  endTime: Date | null;
+  relatedRecords: string[];
+  extra: Record<string, string>; // old_sd, new_sd, sample, destination_folder
 }
 
 export interface ParsedBatch {
@@ -102,7 +110,36 @@ function parseEvent(e: unknown): AgentEvent {
     accessMask: parseMask(e.access_mask),
     success: e.outcome === 'success',
     handleId: str(e.handle_id),
+    action: typeof e.action === 'string' && ACTION_RE.test(e.action) ? e.action : null,
+    newPath: str(e.new_path),
+    itemType: e.item_type === 'file' || e.item_type === 'folder' ? e.item_type : null,
+    count: typeof e.count === 'number' && Number.isSafeInteger(e.count) && e.count > 0 ? e.count : 1,
+    endTime: parseDate(e.end_time),
+    relatedRecords: Array.isArray(e.related_records)
+      ? e.related_records.filter((r) => typeof r === 'number' && Number.isSafeInteger(r) && r >= 0).slice(0, 100).map(String)
+      : [],
+    extra: parseDetails(e.details),
   };
+}
+
+const ACTION_RE = /^[a-z_]{1,32}$/;
+const MAX_DETAIL_KEYS = 20;
+const MAX_DETAIL_LEN = 32 * 1024; // um SDDL grande cabe com folga
+
+function parseDate(v: unknown): Date | null {
+  if (typeof v !== 'string') return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// Detalhes extras do agente: só textos, com limite de chaves e tamanho.
+function parseDetails(v: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!isObj(v)) return out;
+  for (const [k, val] of Object.entries(v).slice(0, MAX_DETAIL_KEYS)) {
+    if (/^[a-z_]{1,32}$/.test(k) && typeof val === 'string' && val !== '' && val.length <= MAX_DETAIL_LEN) out[k] = val;
+  }
+  return out;
 }
 
 // "0x2" -> 2. Valores fora de 32 bits viram nulo (a coluna é integer).
@@ -121,4 +158,25 @@ function parseIp(v: unknown): string | null {
 // Chave do dicionário de identidades: SID quando houver, senão DOMINIO\usuario.
 export function identityKey(u: AgentEvent['user']): string {
   return (u.sid ?? `${u.domain}\\${u.name}`).toLowerCase();
+}
+
+export interface Heartbeat {
+  hostname: string | null;
+  agentVersion: string | null;
+  bufferEvents: number | null;
+  bufferBytes: string | null; // bigint como texto
+}
+
+// Corpo do heartbeat; campos inválidos são ignorados (o heartbeat nunca é recusado por isso).
+export function parseHeartbeat(body: unknown): Heartbeat {
+  const b = isObj(body) ? body : {};
+  const n = (v: unknown) => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null);
+  const events = n(b.buffer_events);
+  const bytes = n(b.buffer_bytes);
+  return {
+    hostname: str(b.hostname)?.slice(0, 255) ?? null,
+    agentVersion: str(b.agent_version)?.slice(0, 64) ?? null,
+    bufferEvents: events !== null && events <= 0x7fffffff ? events : null,
+    bufferBytes: bytes === null ? null : String(bytes),
+  };
 }

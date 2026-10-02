@@ -2,7 +2,9 @@
 
 package config
 
-const (
-	defaultStateFile       = "techaudit-bookmark.xml"
-	defaultCredentialsFile = "techaudit-credentials.json"
-)
+const defaultDataDir = "."
+
+func fromRegistry() (*Config, bool) { return nil, false }
+
+// ForgetEnrollmentToken só tem efeito no Windows.
+func ForgetEnrollmentToken() {}

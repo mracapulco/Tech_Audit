@@ -1,0 +1,68 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+)
+
+const (
+	logMaxBytes = 10 << 20 // gira o log ao passar de 10 MB
+	logKeep     = 3        // agent.log.1 ... agent.log.3
+)
+
+// rotatingFile é um arquivo de log que gira por tamanho, para o serviço não
+// encher o disco do servidor do cliente.
+type rotatingFile struct {
+	mu   sync.Mutex
+	path string
+	f    *os.File
+	size int64
+}
+
+func openLog(path string) (*rotatingFile, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	r := &rotatingFile{path: path}
+	return r, r.open()
+}
+
+func (r *rotatingFile) open() error {
+	f, err := os.OpenFile(r.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return err
+	}
+	r.f, r.size = f, fi.Size()
+	return nil
+}
+
+func (r *rotatingFile) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.size+int64(len(p)) > logMaxBytes {
+		r.f.Close()
+		for i := logKeep - 1; i >= 1; i-- {
+			os.Rename(fmt.Sprintf("%s.%d", r.path, i), fmt.Sprintf("%s.%d", r.path, i+1))
+		}
+		os.Rename(r.path, r.path+".1")
+		if err := r.open(); err != nil {
+			return 0, err
+		}
+	}
+	n, err := r.f.Write(p)
+	r.size += int64(n)
+	return n, err
+}
+
+func (r *rotatingFile) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.f.Close()
+}

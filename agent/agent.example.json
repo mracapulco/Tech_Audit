@@ -2,18 +2,25 @@
   "endpoint": "http://localhost:3001/v1/events",
   "token": "",
   "enrollment_token": "ta_enr_gerado-no-servidor",
-  "credentials_file": "C:\\ProgramData\\TechAudit\\credentials.json",
+  "data_dir": "C:\\ProgramData\\TechAudit",
   "agent_id": "",
   "batch_size": 200,
   "flush_interval": "10s",
-  "state_file": "C:\\ProgramData\\TechAudit\\bookmark.xml",
+  "max_buffer_mb": 1024,
   "start_from": "now",
   "ca_file": "",
   "filter": {
     "exclude_machine_accounts": true,
     "object_types": ["File"],
     "include_paths": [],
-    "exclude_path_contains": ["\\~$", ".tmp", "\\desktop.ini", "\\thumbs.db"]
+    "exclude_path_contains": ["\\~$", ".tmp", "\\desktop.ini", "\\thumbs.db", "\\$recycle.bin\\"]
+  },
+  "correlation": {
+    "window": "3s",
+    "aggregate_window": "60s",
+    "bulk_threshold": 10,
+    "bulk_gap": "5s"
+
   },
   "audit_config": {
     "disabled": false,

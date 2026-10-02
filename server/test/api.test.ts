@@ -182,6 +182,49 @@ describe('API dos agentes', { skip }, () => {
     assert.deepEqual(rows[0], { events: 4, paths: 1, ids: 1 });
   });
 
+  it('grava a ação lógica do agente 0.2: destino, contagem e detalhes', async () => {
+    const r = await sendBatch({
+      batch_id: randomUUID(),
+      events: [
+        {
+          ...sampleEvent,
+          record_id: 50,
+          actions: ['delete'],
+          action: 'renamed',
+          new_path: 'D:\\Shares\\Financeiro\\novo.xlsx',
+          item_type: 'file',
+          related_records: [51],
+          details: { destination_folder: 'D:\\Shares\\Financeiro', '<script>': 'x' },
+        },
+        { ...sampleEvent, record_id: 52, action: 'modified', count: 3, end_time: '2026-10-01T14:04:00Z' },
+      ],
+    });
+    assert.equal((await r.json()).inserted, 2);
+    const { rows } = await pg.query(
+      `SELECT e.source_record_id::int AS rid, e.action, np.path AS new_path, e.item_type, e.event_count,
+              e.end_time IS NOT NULL AS has_end, e.details
+       FROM events.file_events e LEFT JOIN paths np ON np.id = e.new_path_id
+       WHERE e.agent_id = $1 AND e.source_record_id IN (50, 52) ORDER BY 1`,
+      [agentId],
+    );
+    assert.deepEqual(rows[0], {
+      rid: 50,
+      action: 'renamed',
+      new_path: 'D:\\Shares\\Financeiro\\novo.xlsx',
+      item_type: 'file',
+      event_count: null,
+      has_end: false,
+      details: {
+        destination_folder: 'D:\\Shares\\Financeiro',
+        related_records: ['51'],
+        handle_id: '0x1a2c',
+        logon_id: '0x3e7a1f',
+        computer: 'FS01.corp.local',
+      },
+    });
+    assert.deepEqual([rows[1].action, rows[1].event_count, rows[1].has_end], ['modified', 3, true]);
+  });
+
   it('recusa lote malformado', async () => {
     const r = await sendBatch({ batch_id: 'nao-e-uuid', events: [] });
     assert.equal(r.status, 400);
@@ -202,11 +245,28 @@ describe('API dos agentes', { skip }, () => {
     assert.match((await r.json()).message, /licença vencida/);
   });
 
+  it('heartbeat registra o sinal de vida e o buffer, mesmo com a licença vencida', async () => {
+    const hb = (body: unknown, token = agentToken) => post('/v1/heartbeat', body, { authorization: `Bearer ${token}` });
+    assert.equal((await hb({}, 'errado')).status, 401);
+    const r = await hb({ hostname: 'FS01', agent_version: '0.2.0', buffer_events: 42, buffer_bytes: 12345, lixo: true });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).ok, true);
+    const agent = await prisma.agent.findUniqueOrThrow({ where: { id: agentId } });
+    assert.ok(agent.lastHeartbeatAt && Date.now() - agent.lastHeartbeatAt.getTime() < 60_000);
+    assert.deepEqual([agent.agentVersion, agent.bufferEvents, agent.bufferBytes], ['0.2.0', 42, 12345n]);
+    // Campos inválidos são ignorados, sem recusar o heartbeat.
+    assert.equal((await hb({ buffer_events: -1, agent_version: 7 })).status, 200);
+    const again = await prisma.agent.findUniqueOrThrow({ where: { id: agentId } });
+    assert.deepEqual([again.agentVersion, again.bufferEvents], ['0.2.0', null]);
+  });
+
   it('agente desativado é recusado', async () => {
     await prisma.license.update({ where: { id: licenseId }, data: { validUntil: new Date(Date.now() + DAY) } });
     await prisma.agent.update({ where: { id: agentId }, data: { disabledAt: new Date() } });
     const r = await sendBatch({ batch_id: randomUUID(), events: events([7]) });
     assert.equal(r.status, 403);
     assert.match((await r.json()).message, /desativado/);
+    const hb = await post('/v1/heartbeat', {}, { authorization: `Bearer ${agentToken}` });
+    assert.equal(hb.status, 403);
   });
 });

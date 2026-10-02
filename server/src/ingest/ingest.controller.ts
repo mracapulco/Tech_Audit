@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, HttpCode, Logger, Post, Req, UseGuards } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { AgentAuthGuard, type AgentRequest } from './agent-auth.guard.js';
-import { BatchError, parseBatch } from './batch.js';
+import { AgentAuthGuard, AgentIdentityGuard, type AgentRequest } from './agent-auth.guard.js';
+import { BatchError, parseBatch, parseHeartbeat } from './batch.js';
 import { IngestService } from './ingest.service.js';
 
 @Controller('v1')
@@ -28,5 +28,14 @@ export class IngestController {
     }
     const sha256 = createHash('sha256').update(JSON.stringify(body)).digest('hex');
     return this.ingest.ingest(req.agent, batch, sha256);
+  }
+
+  // Sinal de vida enviado pelo agente a cada minuto, mesmo sem eventos.
+  @Post('heartbeat')
+  @HttpCode(200)
+  @UseGuards(AgentIdentityGuard)
+  async heartbeat(@Req() req: AgentRequest, @Body() body: unknown) {
+    await this.ingest.heartbeat(req.agent, parseHeartbeat(body));
+    return { ok: true, server_time: new Date().toISOString() };
   }
 }

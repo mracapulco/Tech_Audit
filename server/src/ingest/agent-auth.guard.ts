@@ -18,9 +18,35 @@ export interface AuthenticatedAgent {
 
 export type AgentRequest = Request & { agent: AuthenticatedAgent };
 
-// Autentica o agente pelo token Bearer recebido no registro. O tenant vem do
-// agente, nunca do corpo da requisição. Recusa a ingestão de licença vencida
-// além da tolerância; o agente segura o lote e tenta de novo.
+// Identifica o agente pelo token Bearer recebido no registro. O tenant vem do
+// agente, nunca do corpo da requisição.
+async function authenticateAgent(prisma: PrismaService, req: AgentRequest): Promise<AuthenticatedAgent> {
+  const token = bearerToken(req.headers.authorization);
+  if (!token) throw new UnauthorizedException('token ausente');
+  const agent = await prisma.agent.findUnique({
+    where: { tokenHash: hashToken(token) },
+    select: { id: true, tenantId: true, disabledAt: true },
+  });
+  if (!agent) throw new UnauthorizedException('token inválido');
+  if (agent.disabledAt) throw new ForbiddenException('agente desativado');
+  return { id: agent.id, tenantId: agent.tenantId };
+}
+
+// Só autentica, sem olhar a licença: o heartbeat continua chegando com a
+// licença vencida, para o portal mostrar que o agente está vivo.
+@Injectable()
+export class AgentIdentityGuard implements CanActivate {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    const req = ctx.switchToHttp().getRequest<AgentRequest>();
+    req.agent = await authenticateAgent(this.prisma, req);
+    return true;
+  }
+}
+
+// Autentica e recusa a ingestão de licença vencida além da tolerância; o
+// agente segura o lote e tenta de novo.
 @Injectable()
 export class AgentAuthGuard implements CanActivate {
   constructor(
@@ -30,14 +56,7 @@ export class AgentAuthGuard implements CanActivate {
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest<AgentRequest>();
-    const token = bearerToken(req.headers.authorization);
-    if (!token) throw new UnauthorizedException('token ausente');
-    const agent = await this.prisma.agent.findUnique({
-      where: { tokenHash: hashToken(token) },
-      select: { id: true, tenantId: true, disabledAt: true },
-    });
-    if (!agent) throw new UnauthorizedException('token inválido');
-    if (agent.disabledAt) throw new ForbiddenException('agente desativado');
+    const agent = await authenticateAgent(this.prisma, req);
     const license = await this.licenses.stateFor(agent.tenantId);
     if (!acceptsIngestion(license)) {
       throw new ForbiddenException(license.status === 'none' ? 'tenant sem licença' : 'licença vencida');

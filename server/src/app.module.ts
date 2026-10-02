@@ -14,7 +14,7 @@ import { EnrollmentService } from './enrollment/enrollment.service.js';
 import { EventsController } from './events/events.controller.js';
 import { EventsService } from './events/events.service.js';
 import { HealthController } from './health.controller.js';
-import { AgentAuthGuard } from './ingest/agent-auth.guard.js';
+import { AgentAuthGuard, AgentIdentityGuard } from './ingest/agent-auth.guard.js';
 import { IngestController } from './ingest/ingest.controller.js';
 import { IngestService } from './ingest/ingest.service.js';
 import { LicenseService } from './licensing/license.service.js';
@@ -45,6 +45,7 @@ import { ReportsService } from './reports/reports.service.js';
     EnrollmentService,
     IngestService,
     AgentAuthGuard,
+    AgentIdentityGuard,
     AuthService,
     PortalAuthGuard,
     AuditLogService,
