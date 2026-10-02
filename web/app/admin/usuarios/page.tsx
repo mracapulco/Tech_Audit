@@ -51,6 +51,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
               Perfil
               <select name="role" defaultValue="tenant_auditor">
                 <option value="tenant_auditor">Cliente (vê só a própria empresa)</option>
+                <option value="tenant_admin">Cliente administrador (também altera os caminhos auditados)</option>
                 <option value="msp_admin">Administrador (Tech Master, acesso total)</option>
               </select>
             </label>

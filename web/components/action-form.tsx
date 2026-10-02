@@ -26,7 +26,7 @@ export function ActionForm({
       action={run}
       className={className}
       onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
+        if (confirm && !window.confirm(fillConfirm(confirm, e.currentTarget))) e.preventDefault();
       }}
     >
       {children}
@@ -48,6 +48,12 @@ export function ActionForm({
       {state?.secret && <Secret {...state.secret} message={state.ok} />}
     </form>
   );
+}
+
+// "{{path}}" no texto de confirmação vira o valor do campo path do formulário.
+function fillConfirm(text: string, form: HTMLFormElement): string {
+  const data = new FormData(form);
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(data.get(name) ?? '').trim());
 }
 
 function Secret({ label, value, config, message }: { label: string; value: string; config?: string; message?: string }) {

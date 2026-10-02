@@ -122,3 +122,23 @@ td form .form-actions { gap: 6px; }
 .filter-row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
 .plain-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Caminhos auditados */
+textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; min-width: 0; resize: vertical; }
+.path-input { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; }
+.stack-form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; max-width: 640px; }
+label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+.volume { display: flex; flex-direction: column; gap: 8px; }
+.volume p { margin: 0; }
+.bar { height: 10px; background: var(--pill-neutral-bg); border-radius: 999px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; background: var(--ok); }
+.bar-fill.warn { background: var(--warn); }
+.bar-fill.bad { background: var(--fail); }
+.alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.alert { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 12px; }
+.alert .grow { flex: 1 1 300px; }
+.cell-note { margin: 4px 0 0; }
+details.edit summary, .add-path summary { cursor: pointer; }
+details.edit summary { list-style: none; display: inline-block; border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; }
+details.edit[open] { flex-basis: 100%; }
+.add-path summary { color: var(--accent); font-weight: 600; }
