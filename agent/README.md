@@ -206,8 +206,8 @@ make msi       # dist/TechAuditAgent-<versão>.msi (requer wixl e msitools)
 A versão fica em `VERSION`. As telas do assistente estão em
 `installer/techaudit-agent.wxs` e as imagens em `installer/bitmaps`. A imagem
 Docker do servidor compila o MSI na hora do `docker compose build` e o oferece
-para download no portal; `DEFAULT_SERVER` (ou o build arg
-`AGENT_DEFAULT_SERVER`) muda a sugestão do campo "Endereço do servidor".
+para download no portal. O campo "Endereço do servidor" começa vazio de
+propósito: o endereço muda entre homologação e produção.
 
 O CI gera o `.exe` e o `.msi` a cada push (artefato
 `techaudit-agent-windows`). Ainda **não são assinados**: o Windows mostra o

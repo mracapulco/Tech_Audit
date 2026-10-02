@@ -14,7 +14,6 @@ windows:
 
 # Gera dist/TechAuditAgent-$(VERSION).msi, com o assistente gráfico em
 # português. Requer wixl e msibuild (pacotes wixl e msitools no Debian/Ubuntu).
-# DEFAULT_SERVER=... muda a sugestão do campo "Endereço do servidor".
 msi: windows
 	sh installer/build-msi.sh $(VERSION) dist/techaudit-agent.exe dist/TechAuditAgent-$(VERSION).msi
 

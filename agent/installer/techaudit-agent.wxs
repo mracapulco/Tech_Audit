@@ -24,8 +24,9 @@
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes"/>
     <MajorUpgrade DowngradeErrorMessage="Uma versão mais nova do Tech Audit Agent já está instalada."/>
 
-    <!-- Sugestão inicial do campo "Endereço do servidor" (make msi DEFAULT_SERVER=...). -->
-    <Property Id="ENDPOINT" Value="$(var.DefaultServer)">
+    <!-- Sem valor padrão: quem instala precisa digitar o endereço que o portal
+         mostra (homologação e produção usam endereços diferentes). -->
+    <Property Id="ENDPOINT">
       <RegistrySearch Id="PrevEndpoint" Root="HKLM" Key="SOFTWARE\TechAudit\Agent" Name="Endpoint" Type="raw" Win64="yes"/>
     </Property>
     <Property Id="ENROLLMENT_TOKEN"/>
@@ -58,7 +59,8 @@
       <ComponentRef Id="AgentEnrollment"/>
     </Feature>
 
-    <Condition Message="Informe o servidor: msiexec /i TechAuditAgent.msi ENDPOINT=https://... ENROLLMENT_TOKEN=...">Installed OR ENDPOINT</Condition>
+    <!-- Com o assistente (UILevel 5) o endereço é pedido na tela; sem telas, na linha de comando. -->
+    <Condition Message="Informe o servidor: msiexec /i TechAuditAgent.msi ENDPOINT=https://... ENROLLMENT_TOKEN=...">Installed OR ENDPOINT OR UILevel = 5</Condition>
 
     <UIRef Id="TechAuditUI"/>
   </Product>

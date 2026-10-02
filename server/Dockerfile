@@ -17,10 +17,8 @@ WORKDIR /src
 COPY --from=agent VERSION ./
 COPY --from=agent installer ./installer
 COPY --from=agent-exe /out/techaudit-agent.exe /out/
-# Sugestão do campo "Endereço do servidor" no instalador.
-ARG AGENT_DEFAULT_SERVER=https://ingest.audit.techmaster.inf.br
 RUN sed -i 's/\r$//' installer/build-msi.sh && VERSION=$(tr -d '\r\n ' < VERSION) && mkdir -p /downloads && \
-    DEFAULT_SERVER="$AGENT_DEFAULT_SERVER" sh installer/build-msi.sh "$VERSION" /out/techaudit-agent.exe "/downloads/TechAuditAgent-$VERSION.msi"
+    sh installer/build-msi.sh "$VERSION" /out/techaudit-agent.exe "/downloads/TechAuditAgent-$VERSION.msi"
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
