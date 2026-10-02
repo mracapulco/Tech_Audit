@@ -6,14 +6,26 @@
 #   docker compose up -d db           só o banco, para desenvolver com npm
 #   docker compose logs -f server     acompanha a API
 
+# Nome fixo do projeto: os contêineres e o volume do banco (techaudit_db-data)
+# têm sempre o mesmo nome, seja qual for o nome da pasta onde o código está.
+# Sem isso, clonar em outra pasta criaria um banco novo e vazio.
+name: techaudit
+
 services:
   db:
-    image: timescale/timescaledb:latest-pg17
+    # Versão fixa: homologação e produção rodam a mesma. Para atualizar,
+    # troque aqui e veja "Atualizar o TimescaleDB" em docs/DEPLOY.md.
+    image: timescale/timescaledb:2.30.2-pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: techaudit
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-techaudit}
       POSTGRES_DB: techaudit
+    networks:
+      default:
+        # Nome próprio na rede, para não confundir com o "db" de outro sistema
+        # (ex.: Tech_Hub) se as redes forem compartilhadas com um proxy.
+        aliases: [techaudit-db]
     # Só na própria máquina: o banco nunca fica exposto na rede.
     ports:
       - "127.0.0.1:${DB_PORT:-5432}:5432"
@@ -32,7 +44,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://techaudit:${POSTGRES_PASSWORD:-techaudit}@db:5432/techaudit?schema=public
+      DATABASE_URL: postgresql://techaudit:${POSTGRES_PASSWORD:-techaudit}@techaudit-db:5432/techaudit?schema=public
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       # Porta só dos agentes: responde apenas /v1/*. O portal (/api) fica na
@@ -40,8 +52,9 @@ services:
       AGENT_PORT: 3002
       TZ: America/Sao_Paulo
     # Porta publicada para os agentes (/v1/enroll, /v1/events, /v1/config).
+    # BIND_ADDRESS=127.0.0.1 deixa a porta só para um proxy na própria máquina.
     ports:
-      - "${API_PORT:-3001}:3002"
+      - "${BIND_ADDRESS:-0.0.0.0}:${API_PORT:-3001}:3002"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -60,7 +73,7 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       TZ: America/Sao_Paulo
     ports:
-      - "${PORTAL_PORT:-3000}:3000"
+      - "${BIND_ADDRESS:-0.0.0.0}:${PORTAL_PORT:-3000}:3000"
 
 volumes:
   db-data:

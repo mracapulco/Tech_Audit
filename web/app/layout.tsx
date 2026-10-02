@@ -3,14 +3,11 @@ import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 import './globals.css';
 
-// Fonte da identidade visual da Tech Master (Expo), servida pelo próprio portal.
-const expo = localFont({
-  src: [
-    { path: './fonts/expo-book.ttf', weight: '400', style: 'normal' },
-    { path: './fonts/expo-medium.ttf', weight: '500', style: 'normal' },
-    { path: './fonts/expo-bold.ttf', weight: '700', style: 'normal' },
-    { path: './fonts/expo-black.ttf', weight: '900', style: 'normal' },
-  ],
+// Inter: fonte de interface feita para leitura em tela, servida pelo próprio portal (sem pedido externo).
+const inter = localFont({
+  src: '../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
   variable: '--font-brand',
   display: 'swap',
   fallback: ['system-ui', 'Segoe UI', 'sans-serif'],
@@ -23,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR" className={expo.variable}>
+    <html lang="pt-BR" className={inter.variable}>
       <body>{children}</body>
     </html>
   );
