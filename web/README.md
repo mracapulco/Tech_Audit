@@ -5,8 +5,11 @@ Portal Next.js do cliente e da equipe Tech Master (docs/ARCHITECTURE.md, seção
 | Tela | O que faz |
 |---|---|
 | `/login` | E-mail e senha. A sessão fica em cookie `httpOnly` (`ta_session`) por 12 horas |
+| `/painel` | Página inicial: resumo do período (24 h, 7, 30 ou 90 dias), gráfico de eventos, ações, usuários e pastas mais ativos, exclusões e mudanças de permissão recentes, licença e situação dos agentes. Administrador escolhe a empresa ou vê todas |
+| `/relatorios` | Relatórios por usuário, por pasta, por período e de eventos detalhados, com os mesmos filtros da pesquisa |
+| `/relatorios/exportar` | Baixa o relatório em Excel (.xlsx) ou PDF |
 | `/eventos` | Pesquisa por usuário, caminho (prefixo, inclui subpastas), ação e período, 50 por página |
-| `/eventos/exportar` | Baixa em CSV o resultado dos filtros atuais (até 100 mil linhas) |
+| `/eventos/exportar` | Baixa em CSV o resultado dos filtros atuais (até 100 mil linhas); a tela também baixa em Excel e PDF |
 | `/admin/empresas` | Administrador: empresas, com licença, servidores e usuários |
 | `/admin/empresas/[id]` | Administrador: licenças, tokens de instalação do agente, servidores e nome |
 | `/admin/usuarios` | Administrador: cadastrar, desativar e gerar nova senha |

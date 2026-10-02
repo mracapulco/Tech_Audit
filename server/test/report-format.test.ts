@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { bucketFor, bucketKeys, bucketLabel } from '../src/reports/report-query.js';
-import { columnWidths, pdfSafe, reportPdf } from '../src/reports/pdf.js';
+import { columnWidths, fitText, pdfSafe, reportPdf } from '../src/reports/pdf.js';
 import { cellText, sortActions, type ReportTable } from '../src/reports/table.js';
 import { colName, excelDate, reportXlsx } from '../src/reports/xlsx.js';
 import { agentHealth } from '../src/reports/reports.service.js';
@@ -63,6 +63,10 @@ describe('formatos dos relatórios', () => {
 
   it('PDF: texto fora do Latin-1 e larguras proporcionais', () => {
     assert.equal(pdfSafe('ação → 日本'), 'ação ? ??');
+    const len = (t: string) => t.length;
+    assert.equal(fitText('curto', 10, false, len), 'curto');
+    assert.equal(fitText('EXEMPLO\\carlos.pereira', 10, false, len), 'EXEMPLO...');
+    assert.equal(fitText('D:\\Dados\\Financeiro\\arquivo.xlsx', 16, true, len), 'D:\\Dado...o.xlsx');
     const w = columnWidths(table.columns, 700);
     assert.equal(Math.round(w.reduce((a, b) => a + b, 0)), 700);
     assert.ok(w[1] > w[0] && w[0] > w[2]);

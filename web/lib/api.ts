@@ -105,6 +105,6 @@ const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 // Telas de administração: só o administrador da Tech Master.
 export async function requireAdmin(): Promise<CurrentUser> {
   const user = await apiGet<CurrentUser>('/api/auth/me');
-  if (user.role !== 'msp_admin') redirect('/eventos');
+  if (user.role !== 'msp_admin') redirect('/painel');
   return user;
 }

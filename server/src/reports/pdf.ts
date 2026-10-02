@@ -9,10 +9,27 @@ const FONT = 'Helvetica';
 const BOLD = 'Helvetica-Bold';
 const SIZE = 7.5;
 const ROW_H = 14;
-const WEIGHT: Record<ReportColumn['kind'], number> = { text: 1.6, path: 3.4, int: 0.8, datetime: 1.3 };
+// Cabeçalho com até duas linhas, para rótulos longos de ação.
+const HEAD_H = 22;
+const WEIGHT: Record<ReportColumn['kind'], number> = { text: 1.6, path: 3.4, int: 0.8, datetime: 1.7 };
 
 // As fontes padrão do PDF só cobrem Latin-1 (WinAnsi); o resto vira "?".
 export const pdfSafe = (s: string) => s.replace(/[^\u0009 -~ -ÿ]/g, '?');
+
+// Corta o texto para caber em `width`. Caminhos perdem o meio, para o nome do
+// arquivo continuar visível; o resto perde o fim.
+export function fitText(s: string, width: number, middle: boolean, measure: (t: string) => number): string {
+  if (measure(s) <= width) return s;
+  const cut = (n: number) => (middle ? s.slice(0, Math.ceil(n / 2)) + '...' + s.slice(s.length - Math.floor(n / 2)) : s.slice(0, n) + '...');
+  let lo = 0;
+  let hi = s.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (measure(cut(mid)) <= width) lo = mid;
+    else hi = mid - 1;
+  }
+  return cut(lo);
+}
 
 // Larguras proporcionais ao tipo de coluna, ocupando a largura útil.
 export function columnWidths(columns: ReportColumn[], total: number): number[] {
@@ -39,24 +56,22 @@ export function reportPdf(t: ReportTable, footer: string): Promise<Buffer> {
   if (t.truncated) doc.fillColor('#9a6700').text('Resultado limitado; refine os filtros ou o período para ver tudo.');
   let y = doc.y + 10;
 
-  const cell = (text: string, x: number, w: number, c: ReportColumn) =>
-    doc.text(pdfSafe(text), x + 3, y + 3.5, {
-      width: w - 6,
-      height: ROW_H - 4,
-      lineBreak: false,
-      ellipsis: true,
-      align: c.kind === 'int' ? 'right' : 'left',
-    });
+  // Cabeçalho quebra em até duas linhas; células cortam o texto para caber.
+  const cell = (text: string, x: number, w: number, c: ReportColumn, h = ROW_H) => {
+    const head = h > ROW_H;
+    const s = head ? pdfSafe(text) : fitText(pdfSafe(text), w - 6, c.kind === 'path', (t) => doc.widthOfString(t));
+    doc.text(s, x + 3, y + 3.5, { width: w - 6, height: h - 4, lineBreak: head, ellipsis: head, align: c.kind === 'int' ? 'right' : 'left' });
+  };
 
   const header = () => {
-    doc.rect(MARGIN, y, width, ROW_H).fill('#e8eef8');
+    doc.rect(MARGIN, y, width, HEAD_H).fill('#e8eef8');
     doc.font(BOLD).fontSize(SIZE).fillColor('#1c2330');
     let x = MARGIN;
     t.columns.forEach((c, i) => {
-      cell(c.label, x, widths[i], c);
+      cell(c.label, x, widths[i], c, HEAD_H);
       x += widths[i];
     });
-    y += ROW_H;
+    y += HEAD_H;
   };
 
   header();
