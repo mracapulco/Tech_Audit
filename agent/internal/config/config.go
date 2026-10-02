@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -119,6 +121,9 @@ func (c *Config) applyDefaults() error {
 	if c.Endpoint == "" {
 		return errors.New("endpoint é obrigatório")
 	}
+	if err := checkEndpoint(c.Endpoint); err != nil {
+		return err
+	}
 	if c.AgentID == "" {
 		h, _ := os.Hostname()
 		c.AgentID = h
@@ -163,4 +168,29 @@ var defaultFilter = event.Filter{
 	ExcludeMachineAccounts: true,
 	ObjectTypes:            []string{"File"},
 	ExcludePathContains:    []string{`\~$`, ".tmp", `\desktop.ini`, `\thumbs.db`, `\$recycle.bin\`},
+}
+
+// checkEndpoint exige HTTPS fora da rede local: o token do agente e os eventos
+// (usuários, caminhos, IPs) não podem atravessar a internet sem criptografia.
+// HTTP continua aceito para localhost e IPs privados, nos testes.
+func checkEndpoint(endpoint string) error {
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("endpoint inválido %q (ex.: https://ingest.audit.techmaster.inf.br/v1/events)", endpoint)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		host := u.Hostname()
+		if host == "localhost" {
+			return nil
+		}
+		if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
+			return nil
+		}
+		return fmt.Errorf("endpoint %q usa http:// fora da rede local; use https://", endpoint)
+	default:
+		return fmt.Errorf("endpoint %q deve começar com https://", endpoint)
+	}
 }

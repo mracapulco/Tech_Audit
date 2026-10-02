@@ -7,7 +7,7 @@ testar numa máquina e para a produção; o que muda é o `.env`.
 | Serviço | Porta | Para quê |
 |---|---|---|
 | `web` | `PORTAL_PORT` (3000) | Portal: login, painel, eventos, relatórios, empresas, licenças, usuários |
-| `server` | `API_PORT` (3001) | Agentes (`/v1/enroll`, `/v1/events`) e API do portal (`/api`) |
+| `server` | `API_PORT` (3001) | Só os agentes (`/v1/*`). A API do portal (`/api`) fica na porta interna 3001 do contêiner, sem publicação |
 | `db` | só `127.0.0.1:5432` | Banco; nunca fica exposto na rede |
 
 ## Primeira subida
@@ -37,7 +37,10 @@ Os dados ficam no volume `db-data` e sobrevivem a atualizações e reinícios.
 
 - Coloque o portal e a API atrás do proxy reverso com HTTPS (Traefik, Nginx),
   por exemplo `audit.techmaster.inf.br` → `web:3000` e
-  `ingest.audit.techmaster.inf.br` → `server:3001`.
+  `ingest.audit.techmaster.inf.br` → `server:3002` (porta só dos agentes).
+  Publique para a internet só o proxy: as portas do portal e da API não devem
+  ficar abertas direto, porque o IP do usuário no log de acesso vem do
+  `X-Forwarded-For` que o proxy acrescenta.
 - No `.env`: `COOKIE_SECURE=true` (o login exige HTTPS) e
   `PUBLIC_AGENT_URL=https://ingest.audit.techmaster.inf.br` (vai no
   `agent.json` gerado pelo portal).

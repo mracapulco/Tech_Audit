@@ -1,5 +1,6 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { clientIp } from './client-ip';
 
 // Acesso à API do Tech Audit (server/), sempre pelo servidor do Next.js: o
 // navegador nunca vê o token, que fica em cookie httpOnly.
@@ -21,10 +22,9 @@ export async function sessionToken(): Promise<string | undefined> {
   return (await cookies()).get(SESSION_COOKIE)?.value;
 }
 
-// IP do usuário, para o log de acesso da API.
+// IP do usuário, para o log de acesso e o limite de tentativas de login da API.
 async function forwardedFor(): Promise<Record<string, string>> {
-  const h = await headers();
-  const ip = h.get('x-forwarded-for') ?? h.get('x-real-ip');
+  const ip = clientIp((await headers()).get('x-forwarded-for'));
   return ip ? { 'x-forwarded-for': ip } : {};
 }
 
