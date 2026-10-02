@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { AgentConfigController } from './auditcfg/agent-config.controller.js';
+import { AuditConfigService } from './auditcfg/audit-config.service.js';
+import { ConfigController } from './auditcfg/config.controller.js';
 import { AdminGuard } from './admin/admin.guard.js';
 import { AdminTenantsController } from './admin/admin-tenants.controller.js';
 import { AdminUsersController } from './admin/admin-users.controller.js';
@@ -29,6 +32,8 @@ import { PrismaService } from './prisma.service.js';
     EventsController,
     AdminTenantsController,
     AdminUsersController,
+    ConfigController,
+    AgentConfigController,
   ],
   providers: [
     PrismaService,
@@ -42,6 +47,7 @@ import { PrismaService } from './prisma.service.js';
     AuditLogService,
     EventsService,
     AdminGuard,
+    AuditConfigService,
   ],
 })
 export class AppModule {}
