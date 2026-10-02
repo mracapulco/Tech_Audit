@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -92,6 +93,48 @@ func (s *Sender) Send(ctx context.Context, b *event.Batch) error {
 			backoff = s.MaxBackoff
 		}
 	}
+}
+
+// Heartbeat é o corpo de POST /v1/heartbeat.
+type Heartbeat struct {
+	Hostname     string `json:"hostname"`
+	AgentVersion string `json:"agent_version"`
+	BufferEvents int    `json:"buffer_events"`
+	BufferBytes  int64  `json:"buffer_bytes"`
+	// Pending são eventos aguardando correlação (alguns segundos).
+	Pending int `json:"pending"`
+}
+
+// SendHeartbeat envia o sinal de vida para o endereço irmão do endpoint de
+// eventos (https://host/v1/events -> https://host/v1/heartbeat). Uma
+// tentativa só: o próximo heartbeat sai no intervalo seguinte.
+func (s *Sender) SendHeartbeat(ctx context.Context, hb Heartbeat) error {
+	u, err := url.Parse(s.Endpoint)
+	if err != nil {
+		return err
+	}
+	body, err := json.Marshal(hb)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.ResolveReference(&url.URL{Path: "heartbeat"}).String(), bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if s.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+s.Token)
+	}
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("heartbeat: HTTP %d: %s", resp.StatusCode, bytes.TrimSpace(msg))
+	}
+	return nil
 }
 
 func encode(b *event.Batch) ([]byte, error) {

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import { PgService } from '../db/pg.service.js';
 import type { AuthenticatedAgent } from './agent-auth.guard.js';
-import { identityKey, ParsedBatch } from './batch.js';
+import { type Heartbeat, identityKey, ParsedBatch } from './batch.js';
 
 export interface IngestResult {
   batch_id: string;
@@ -21,6 +21,16 @@ const pathHash = (p: string) => createHash('sha256').update(p.toLowerCase()).dig
 @Injectable()
 export class IngestService {
   constructor(private readonly pg: PgService) {}
+
+  async heartbeat(agent: AuthenticatedAgent, hb: Heartbeat): Promise<void> {
+    await this.pg.query(
+      `UPDATE agents SET last_heartbeat_at = now(),
+         hostname = COALESCE($2, hostname), agent_version = COALESCE($3, agent_version),
+         buffer_events = $4, buffer_bytes = $5
+       WHERE id = $1`,
+      [agent.id, hb.hostname, hb.agentVersion, hb.bufferEvents, hb.bufferBytes],
+    );
+  }
 
   async ingest(agent: AuthenticatedAgent, batch: ParsedBatch, contentSha256: string): Promise<IngestResult> {
     const client = await this.pg.connect();
@@ -86,7 +96,10 @@ export class IngestService {
 
   private async upsertPaths(client: Client, agent: AuthenticatedAgent, batch: ParsedBatch) {
     const byHash = new Map<string, string>();
-    for (const e of batch.events) if (e.path) byHash.set(pathHash(e.path), e.path);
+    for (const e of batch.events) {
+      if (e.path) byHash.set(pathHash(e.path), e.path);
+      if (e.newPath) byHash.set(pathHash(e.newPath), e.newPath);
+    }
     const ids = new Map<string, string>();
     if (byHash.size === 0) return ids;
     // Ordem fixa reduz deadlocks entre lotes concorrentes.
@@ -131,7 +144,8 @@ export class IngestService {
     const ev = batch.events;
     if (ev.length === 0) return 0;
     const details = ev.map((e) => {
-      const d: Record<string, string> = {};
+      const d: Record<string, unknown> = { ...e.extra };
+      if (e.relatedRecords.length) d.related_records = e.relatedRecords;
       if (e.handleId) d.handle_id = e.handleId;
       if (e.user.logonId) d.logon_id = e.user.logonId;
       if (e.computer) d.computer = e.computer;
@@ -141,14 +155,17 @@ export class IngestService {
       `INSERT INTO events.file_events
          (time, tenant_id, agent_id, batch_id, source_record_id, source_event_id, kind, path_id,
           identity_id, actions, success, access_mask, object_type, share_name, source_ip,
-          process_name, details)
+          process_name, details, action, new_path_id, item_type, event_count, end_time)
        SELECT t.time, $1, $2, $3, t.rid, t.eid, t.kind, t.path_id, t.identity_id,
               ARRAY(SELECT jsonb_array_elements_text(t.actions)), t.success, t.mask, t.otype,
-              t.share, t.ip, t.proc, t.details
+              t.share, t.ip, t.proc, t.details, t.action, t.new_path_id, t.item_type,
+              NULLIF(t.cnt, 1), t.end_time
        FROM unnest($4::timestamptz[], $5::bigint[], $6::int[], $7::text[], $8::bigint[], $9::bigint[],
                    $10::jsonb[], $11::bool[], $12::int[], $13::text[], $14::text[], $15::inet[],
-                   $16::text[], $17::jsonb[])
-         AS t(time, rid, eid, kind, path_id, identity_id, actions, success, mask, otype, share, ip, proc, details)
+                   $16::text[], $17::jsonb[], $18::text[], $19::bigint[], $20::text[], $21::int[],
+                   $22::timestamptz[])
+         AS t(time, rid, eid, kind, path_id, identity_id, actions, success, mask, otype, share, ip, proc, details,
+              action, new_path_id, item_type, cnt, end_time)
        ON CONFLICT DO NOTHING`,
       [
         agent.tenantId,
@@ -168,6 +185,11 @@ export class IngestService {
         ev.map((e) => e.clientIp),
         ev.map((e) => e.process),
         details,
+        ev.map((e) => e.action),
+        ev.map((e) => (e.newPath ? pathIds.get(pathHash(e.newPath)) : null)),
+        ev.map((e) => e.itemType),
+        ev.map((e) => e.count),
+        ev.map((e) => e.endTime),
       ],
     );
     return res.rowCount ?? 0;

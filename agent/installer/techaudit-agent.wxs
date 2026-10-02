@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Instalador MSI do Tech Audit Agent (compilado com wixl, do msitools: make msi).
+  Instalação silenciosa:
+    msiexec /i TechAuditAgent.msi /qn ENDPOINT=https://ingest.audit.techmaster.inf.br/v1/events ENROLLMENT_TOKEN=ta_enr_...
+  ENDPOINT e ENROLLMENT_TOKEN vão para HKLM\SOFTWARE\TechAudit\Agent, lidos pelo
+  agente quando não existe C:\ProgramData\TechAudit\agent.json. Numa atualização
+  sem ENDPOINT, o valor anterior é mantido (RegistrySearch). O agente apaga o
+  EnrollmentToken do registro assim que obtém o próprio token.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Tech Audit Agent" Language="1046" Codepage="1252"
+           Version="$(var.Version)" Manufacturer="Tech Master"
+           UpgradeCode="6B8E3C0A-5F2D-4C71-9A43-2E7D1B5C9F10">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine"
+             Description="Tech Audit Agent" Manufacturer="Tech Master" Languages="1046" SummaryCodepage="1252"/>
+    <Media Id="1" Cabinet="agent.cab" EmbedCab="yes"/>
+    <MajorUpgrade DowngradeErrorMessage="Uma versão mais nova do Tech Audit Agent já está instalada."/>
+
+    <Property Id="ENDPOINT">
+      <RegistrySearch Id="PrevEndpoint" Root="HKLM" Key="SOFTWARE\TechAudit\Agent" Name="Endpoint" Type="raw" Win64="yes"/>
+    </Property>
+    <Property Id="ENROLLMENT_TOKEN"/>
+    <Property Id="ARPNOMODIFY" Value="1"/>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="TechAudit">
+          <Component Id="AgentExe" Guid="3F1C9B52-7D84-4E2A-8C61-0A5B7E9D2F34" Win64="yes">
+            <File Id="AgentExeFile" Name="techaudit-agent.exe" Source="$(var.ExePath)" KeyPath="yes"/>
+            <ServiceInstall Id="AgentService" Name="TechAuditAgent" DisplayName="Tech Audit Agent"
+                            Description="Coleta a auditoria de acesso a arquivos do log de Segurança e envia ao servidor Tech Audit."
+                            Type="ownProcess" Start="auto" ErrorControl="normal" Account="LocalSystem" Vital="yes"/>
+            <ServiceControl Id="AgentServiceControl" Name="TechAuditAgent" Start="install" Stop="both" Remove="uninstall" Wait="yes"/>
+          </Component>
+          <Component Id="AgentEndpoint" Guid="9A2E4D61-1B7C-4F38-A5D0-6C3E8B2F7A19" Win64="yes">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\TechAudit\Agent" Name="Endpoint" Type="string" Value="[ENDPOINT]" KeyPath="yes"/>
+          </Component>
+          <Component Id="AgentEnrollment" Guid="C4B7F2E8-3D19-4A65-8E0C-5F1A9D6B2C47" Win64="yes">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\TechAudit\Agent" Name="EnrollmentToken" Type="string" Value="[ENROLLMENT_TOKEN]" KeyPath="yes"/>
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="Agent" Level="1">
+      <ComponentRef Id="AgentExe"/>
+      <ComponentRef Id="AgentEndpoint"/>
+      <ComponentRef Id="AgentEnrollment"/>
+    </Feature>
+
+    <Condition Message="Informe o servidor: msiexec /i TechAuditAgent.msi ENDPOINT=https://.../v1/events ENROLLMENT_TOKEN=...">Installed OR ENDPOINT</Condition>
+  </Product>
+</Wix>

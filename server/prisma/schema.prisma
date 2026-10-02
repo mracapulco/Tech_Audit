@@ -24,6 +24,9 @@ model Tenant {
   licenses         License[]
   enrollmentTokens EnrollmentToken[]
   users            User[]
+  auditedPaths     AuditedPath[]
+  // Faixa do volume auditado já avisada (0, 80 ou 100%), para alertar só na subida.
+  volumeAlertLevel Int               @default(0) @map("volume_alert_level")
 
   @@map("tenants")
 }
@@ -81,9 +84,21 @@ model Agent {
   // Hash SHA-256 do token Bearer de longa duração (protótipo, antes do mTLS).
   tokenHash    String              @unique @map("token_hash")
   lastSeenAt   DateTime?           @map("last_seen_at")
+  // Último sinal de vida do agente (POST /v1/heartbeat, a cada minuto mesmo sem eventos).
+  lastHeartbeatAt DateTime?        @map("last_heartbeat_at")
+  // Eventos e bytes aguardando envio no buffer local, informados no heartbeat.
+  bufferEvents Int?                @map("buffer_events")
+  bufferBytes  BigInt?             @map("buffer_bytes")
   disabledAt   DateTime?           @map("disabled_at")
   createdAt    DateTime            @default(now()) @map("created_at")
   activations  LicenseActivation[]
+  auditedPaths AuditedPath[]
+  // Versão da configuração de auditoria; sobe a cada alteração no portal.
+  configVersion        Int       @default(0) @map("config_version")
+  // Última versão que o agente informou ter aplicado.
+  configAppliedVersion Int?      @map("config_applied_version")
+  configFetchedAt      DateTime? @map("config_fetched_at")
+  sizesMeasuredAt      DateTime? @map("sizes_measured_at")
 
   @@unique([tenantId, machineId])
   @@map("agents")
@@ -199,4 +214,89 @@ model PortalAuditLog {
 
   @@index([tenantId, createdAt])
   @@map("portal_audit_log")
+}
+
+// Caminho auditado em um servidor (seção 4.6). O portal grava o desejado
+// (desiredState, opções); o agente aplica a SACL e devolve o status.
+// Remover não apaga a linha: fica "removed" depois que o agente confirma.
+model AuditedPath {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  agentId      String    @map("agent_id") @db.Uuid
+  agent        Agent     @relation(fields: [agentId], references: [id])
+  path         String
+  // Caminho normalizado (minúsculas, sem barra final): o NTFS não diferencia caixa.
+  pathKey      String    @map("path_key")
+  // Herança da SACL para subpastas e arquivos.
+  recursive    Boolean   @default(true)
+  // Leitura gera muito volume: desligada por padrão.
+  auditRead    Boolean   @default(false) @map("audit_read")
+  // Padrões ignorados pelo agente na coleta (ex.: *.tmp, ~$*).
+  exclusions   String[]  @default([])
+  // active ou removed (o que o portal pediu).
+  desiredState String    @default("active") @map("desired_state")
+  // pending, applied, error, divergent, removing, removed (o que o agente informou).
+  status       String    @default("pending")
+  lastError    String?   @map("last_error")
+  appliedAt    DateTime? @map("applied_at")
+  // Tamanho medido pelo agente (arquivos e subpastas, recursivo), em bytes.
+  sizeBytes    BigInt?   @map("size_bytes")
+  sizeError    String?   @map("size_error")
+  sizeMeasuredAt DateTime? @map("size_measured_at")
+  createdById  String?   @map("created_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@unique([agentId, pathKey])
+  @@index([tenantId])
+  @@map("audited_paths")
+}
+
+// Log imutável de alterações da auditoria (seção 4.6): pedidos feitos no
+// portal e resultados aplicados pelo agente, com SACL e política antes e
+// depois. Um gatilho no banco recusa UPDATE e DELETE.
+model AuditConfigChange {
+  id            BigInt   @id @default(autoincrement())
+  tenantId      String   @map("tenant_id") @db.Uuid
+  agentId       String   @map("agent_id") @db.Uuid
+  auditedPathId String?  @map("audited_path_id") @db.Uuid
+  path          String
+  // Pedidos: add, update, remove, reapply. Agente: applied, removed, error, divergent.
+  kind          String
+  // portal ou agent.
+  source        String
+  configVersion Int      @map("config_version")
+  // Quem pediu (cópias, para o histórico sobreviver à exclusão do usuário).
+  userId        String?  @map("user_id") @db.Uuid
+  userEmail     String?  @map("user_email")
+  userRole      String?  @map("user_role")
+  ip            String?
+  details       Json?
+  message       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([agentId, createdAt])
+  @@map("audit_config_changes")
+}
+
+// Alertas para o portal (dashboard e configuração). Por enquanto: alterações
+// de auditoria aplicadas, erros, divergências e volume da licença.
+model Alert {
+  id             BigInt    @id @default(autoincrement())
+  tenantId       String    @map("tenant_id") @db.Uuid
+  agentId        String?   @map("agent_id") @db.Uuid
+  // audit_config_changed, audit_config_error, audit_config_divergent, volume_80, volume_100
+  kind           String
+  // info, warning, critical
+  severity       String
+  message        String
+  details        Json?
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  acknowledgedBy String?   @map("acknowledged_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@map("alerts")
 }

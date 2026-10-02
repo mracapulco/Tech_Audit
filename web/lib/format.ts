@@ -3,7 +3,7 @@
 export const ROLE_LABELS: Record<string, string> = {
   msp_admin: 'Administrador',
   msp_operator: 'Operador Tech Master',
-  tenant_admin: 'Cliente (administrador)',
+  tenant_admin: 'Cliente administrador',
   tenant_auditor: 'Cliente',
 };
 export const roleLabel = (r: string) => ROLE_LABELS[r] ?? r;

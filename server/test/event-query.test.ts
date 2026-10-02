@@ -28,10 +28,13 @@ describe('filtros da pesquisa de eventos', () => {
   it('valida datas, ação e campos repetidos', () => {
     assert.throws(() => parseFilters({ from: 'ontem' }, null, now), FilterError);
     assert.throws(() => parseFilters({ from: '2026-10-02', to: '2026-10-01' }, null, now), /antes do fim/);
-    assert.throws(() => parseFilters({ action: 'drop' }, null, now), /ação desconhecida/);
+    assert.throws(() => parseFilters({ action: 'drop table' }, null, now), /ação inválida/);
+    // Tipos novos do agente passam sem mudar o servidor.
+    assert.equal(parseFilters({ action: 'moved_to_recycle_bin' }, null, now).action, 'moved_to_recycle_bin');
     assert.throws(() => parseFilters({ user: ['a', 'b'] }, null, now), /uma vez/);
     const f = parseFilters({ user: '  joao ', path: 'D:\\Dados\\', action: 'delete' }, null, now);
     assert.deepEqual([f.user, f.pathPrefix, f.action], ['joao', 'D:\\Dados\\', 'delete']);
+    assert.equal(parseFilters({ action: 'recycled' }, null, now).action, 'recycled');
   });
 
   it('limite de página', () => {
@@ -58,6 +61,7 @@ describe('filtros da pesquisa de eventos', () => {
     const f = parseFilters({ user: "x' OR 1=1 --", path: 'D:\\A', action: 'write' }, [T1], now);
     const q = buildEventQuery(f, { time: '2026-10-01T14:03:22.123456Z', agentId: T1, recordId: '9' }, 51);
     assert.ok(!q.text.includes('OR 1=1'));
+    assert.match(q.text, /\(e\.action = \$7 OR \$7 = ANY\(e\.actions\)\)/);
     assert.match(q.text, /FROM identities WHERE tenant_id = ANY\(\$3::uuid\[\]\)/);
     assert.match(q.text, /FROM paths WHERE tenant_id = ANY\(\$3::uuid\[\]\)/);
     assert.deepEqual(q.values.slice(2), [[T1], "%x' or 1=1 --%", "x' or 1=1 --", 'd:\\a%', 'write', '2026-10-01T14:03:22.123456Z', T1, '9', 51]);
@@ -109,8 +113,16 @@ describe('CSV', () => {
       share_name: null,
       source_ip: '10.0.0.5',
       process_name: null,
+      action: 'renamed',
+      new_path: 'D:\\A\\c.txt',
+      item_type: 'file',
+      count: 1,
+      end_time: null,
     });
-    assert.equal(line, '2026-10-01 11:03:22;Cliente;FS01;CORP\\joao;S-1-5-21-1;D:\\A\\b.txt;delete, write;falha;;10.0.0.5;;4663;7\r\n');
+    assert.equal(
+      line,
+      '2026-10-01 11:03:22;Cliente;FS01;CORP\\joao;S-1-5-21-1;Renomeou;D:\\A\\b.txt;D:\\A\\c.txt;1;delete, write;falha;;10.0.0.5;;4663;7\r\n',
+    );
   });
 });
 

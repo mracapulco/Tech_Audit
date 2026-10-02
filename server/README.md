@@ -13,6 +13,8 @@ API NestJS que registra os agentes e recebe os eventos de auditoria
 | `GET /api/tenants` | portal | Clientes visíveis para o usuário |
 | `GET /api/events` | portal | Pesquisa de eventos (filtros abaixo), paginada por cursor |
 | `GET /api/events/export.csv` | portal | Mesmos filtros, em CSV |
+| `GET /api/dashboard` | portal | Painel: totais, gráfico, ações, rankings, destaques, agentes e licença (mesmos filtros) |
+| `GET /api/reports/{usuarios,pastas,periodo,eventos}` | portal | Relatórios; `format=json` (padrão), `xlsx` ou `pdf` |
 | `/api/admin/...` | portal, só `msp_admin` | Empresas, licenças, tokens de instalação, agentes e usuários |
 
 As rotas do portal usam `Authorization: Bearer <token da sessão>`; o portal
@@ -63,7 +65,8 @@ caracteres; 5 senhas erradas seguidas no mesmo e-mail e IP bloqueiam por 15 minu
 - `user`: trecho de `DOMINIO\usuario` ou o SID exato, sem diferenciar maiúsculas.
 - `path`: prefixo do caminho (inclui subpastas), sem diferenciar maiúsculas.
 - `action`: `read`, `write`, `append`, `execute`, `delete`, `delete_child`,
-  `write_attributes`, `permission_change`, `owner_change`.
+  `write_attributes`, `permission_change`, `owner_change`, ou qualquer tipo
+  novo que o agente passe a enviar (letras minúsculas, números e `_`).
 - `tenant`: só para a equipe Tech Master; usuário de cliente recebe `403` se
   pedir outro tenant.
 - `limit` (1 a 200, padrão 50) e `cursor` (`next_cursor` da página anterior).
@@ -72,6 +75,21 @@ caracteres; 5 senhas erradas seguidas no mesmo e-mail e IP bloqueiam por 15 minu
 O CSV usa `;`, UTF-8 com BOM e horário de Brasília, para abrir direto no Excel,
 e para em 100 mil linhas (`EXPORT_MAX_ROWS`). Pesquisas (primeira página),
 exportações, logins e logouts ficam em `portal_audit_log`.
+
+## Painel e relatórios
+
+`/api/dashboard` e `/api/reports/:tipo` aceitam os mesmos filtros da pesquisa e
+o mesmo escopo por tenant. Os relatórios agrupados trazem uma coluna por tipo
+de ação encontrado no resultado, então tipos novos do agente aparecem sem
+mudança no servidor (com o próprio nome até ganharem rótulo em
+`src/reports/table.ts` e `web/lib/filters.ts`). O período usa intervalos de
+hora (até 2 dias), dia (até 120 dias) ou mês, no horário de Brasília.
+
+Limites por formato: tela 500 linhas agrupadas ou 200 eventos; Excel 20 mil
+linhas agrupadas ou `EXPORT_MAX_ROWS` eventos; PDF 5 mil linhas. O Excel é
+gerado sem dependências (`src/reports/xlsx.ts`), com datas reais e filtro
+automático; o PDF usa `pdfkit`, A4 paisagem. Visualizações (`reports.view`) e
+exportações (`reports.export`) ficam em `portal_audit_log`.
 
 ## Registrar um agente (até o portal existir)
 

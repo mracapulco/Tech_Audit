@@ -6,7 +6,7 @@ testar numa máquina e para a produção; o que muda é o `.env`.
 
 | Serviço | Porta | Para quê |
 |---|---|---|
-| `web` | `PORTAL_PORT` (3000) | Portal: login, eventos, empresas, licenças, usuários |
+| `web` | `PORTAL_PORT` (3000) | Portal: login, painel, eventos, relatórios, empresas, licenças, usuários |
 | `server` | `API_PORT` (3001) | Agentes (`/v1/enroll`, `/v1/events`) e API do portal (`/api`) |
 | `db` | só `127.0.0.1:5432` | Banco; nunca fica exposto na rede |
 

@@ -62,3 +62,21 @@ func TestSendDoesNotRetryClientError(t *testing.T) {
 		t.Errorf("calls=%d, esperado 1", calls.Load())
 	}
 }
+
+func TestHeartbeat(t *testing.T) {
+	var got Heartbeat
+	var path string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		json.NewDecoder(r.Body).Decode(&got)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+	s, _ := New(srv.URL+"/v1/events", "segredo", "")
+	if err := s.SendHeartbeat(context.Background(), Heartbeat{AgentVersion: "0.2.0", BufferEvents: 3}); err != nil {
+		t.Fatal(err)
+	}
+	if path != "/v1/heartbeat" || got.AgentVersion != "0.2.0" || got.BufferEvents != 3 {
+		t.Errorf("path=%s got=%+v", path, got)
+	}
+}
