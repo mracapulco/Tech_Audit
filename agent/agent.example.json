@@ -1,0 +1,16 @@
+{
+  "endpoint": "http://localhost:8080/v1/events",
+  "token": "troque-este-token",
+  "agent_id": "",
+  "batch_size": 200,
+  "flush_interval": "10s",
+  "state_file": "C:\\ProgramData\\TechAudit\\bookmark.xml",
+  "start_from": "now",
+  "ca_file": "",
+  "filter": {
+    "exclude_machine_accounts": true,
+    "object_types": ["File"],
+    "include_paths": [],
+    "exclude_path_contains": ["\\~$", ".tmp", "\\desktop.ini", "\\thumbs.db"]
+  }
+}
