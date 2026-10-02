@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mracapulco/Tech_Audit/agent/internal/dirsize"
+	"github.com/mracapulco/Tech_Audit/agent/internal/sddl"
 )
 
 // Syncer roda a sincronização: consulta a configuração a cada Interval,
@@ -172,18 +173,23 @@ func describe(e ChangeEntry) string {
 		msg += " (" + e.Message + ")"
 	}
 	if e.Before != nil || e.After != nil {
-		msg += fmt.Sprintf(". Antes: %s. Depois: %s.", stateText(e.Before), stateText(e.After))
+		msg += fmt.Sprintf(". Antes: %s. Depois: %s.", stateText(e.Before, e.Path != ""), stateText(e.After, e.Path != ""))
 	}
 	return msg + fmt.Sprintf(" Versão da configuração: %d. Alteração solicitada pelo portal Tech Audit.", e.Version)
 }
 
-func stateText(st *AuditState) string {
+// stateText descreve SACL e política; withSACL indica que a SACL foi lida
+// (vazia = pasta sem nenhuma regra de auditoria).
+func stateText(st *AuditState, withSACL bool) string {
 	if st == nil {
 		return "-"
 	}
 	parts := ""
-	if st.SACL != "" {
+	switch sacl, _ := sddl.Parse(st.SACL); {
+	case st.SACL != "" && len(sacl.ACEs) > 0:
 		parts = "SACL " + st.SACL
+	case withSACL:
+		parts = "SACL vazia"
 	}
 	if st.Policy != "" {
 		if parts != "" {

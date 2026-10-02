@@ -364,3 +364,23 @@ func TestExclusionsGlob(t *testing.T) {
 		t.Error("nil não exclui")
 	}
 }
+
+func TestDescribeEmptySACL(t *testing.T) {
+	msg := describe(ChangeEntry{Operation: "apply", Status: "applied", Path: fin,
+		Before: &AuditState{Policy: "Sistema de arquivos: sucesso e falha"},
+		After:  &AuditState{SACL: "S:AI(AU;OICISAFA;DCLCRPDTCRSDWDWO;;;WD)", Policy: "Sistema de arquivos: sucesso e falha"}})
+	if !strings.Contains(msg, "Antes: SACL vazia; Sistema de arquivos") || !strings.Contains(msg, "Depois: SACL S:AI(AU;") {
+		t.Fatal(msg)
+	}
+	if strings.Contains(describe(ChangeEntry{Operation: "policy", Status: "applied", Before: &AuditState{Policy: "x"}}), "SACL") {
+		t.Fatal("mudança só de política não fala de SACL")
+	}
+}
+
+func TestWindowsAliasMaskIsRecognized(t *testing.T) {
+	// Como o Windows 11 devolveu a entrada no teste do Rafael (02/10/2026).
+	s, _ := sddl.Parse("O:BAG:DUD:AI(A;OICIID;FA;;;BA)S:AI(AU;OICISAFA;DCLCRPDTCRSDWDWO;;;WD)")
+	if !s.Has(sddl.AuditACE(true, false)) {
+		t.Fatal("entrada com siglas não reconhecida")
+	}
+}
