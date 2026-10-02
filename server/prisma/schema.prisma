@@ -1,0 +1,30 @@
+// Esquema inicial mínimo. O modelo de dados real vem com a definição da arquitetura.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Empresa cliente da Tech Master.
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  agents    Agent[]
+}
+
+// Agente instalado em um servidor de arquivos do cliente.
+model Agent {
+  id         String    @id @default(uuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  hostname   String
+  os         String
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+}
