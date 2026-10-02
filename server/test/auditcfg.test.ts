@@ -119,7 +119,7 @@ describe('configuração de caminhos auditados', { skip }, () => {
 
     const cfg = await agentGet();
     assert.equal(cfg.version, 1);
-    assert.deepEqual(cfg.paths, [{ id: finId, path: 'D:\\Dados\\Financeiro', state: 'active', recursive: true, audit_read: false, exclusions: ['*.tmp', '~$*'] }]);
+    assert.deepEqual(cfg.paths, [{ id: finId, path: 'D:\\Dados\\Financeiro', state: 'active', status: 'pending', recursive: true, audit_read: false, exclusions: ['*.tmp', '~$*'] }]);
   });
 
   it('auditor só consulta; outro cliente não enxerga nem altera', async () => {
@@ -230,9 +230,9 @@ describe('configuração de caminhos auditados', { skip }, () => {
     assert.equal(cfg.paths.find((p: { id: string }) => p.id === finId), undefined);
     assert.equal((await view(admin)).agents[0].paths.find((p: { id: string }) => p.id === finId), undefined);
 
-    // Pendente nunca aplicado some na hora.
+    // Mesmo pendente, a remoção espera o agente confirmar (ele pode já ter aplicado).
     const pend = (await view(admin)).agents[0].paths.find((p: { path: string }) => p.path === 'D:\\Dados\\Financeiro\\2025');
-    assert.equal((await json(await call('DELETE', `/api/config/paths/${pend.id}`, admin, { confirm: true }))).status, 'removed');
+    assert.equal((await json(await call('DELETE', `/api/config/paths/${pend.id}`, admin, { confirm: true }))).status, 'removing');
 
     // Recadastrar reaproveita a linha.
     const again = await json(await addPath(mspAdmin, 'D:\\Dados\\Financeiro'), 201);

@@ -87,6 +87,7 @@ func main() {
 		}
 		s.Logf = log.Printf
 		send = s.Send
+		startAuditConfig(ctx, cfg, s.Client, s.Token)
 	}
 
 	log.Printf("techaudit-agent %s iniciado (agent_id=%s, endpoint=%s)", version, cfg.AgentID, cfg.Endpoint)
@@ -113,7 +114,7 @@ func run(ctx context.Context, cfg *config.Config, src source.Source, send func(c
 					log.Printf("evento ignorado: %v", err)
 					continue
 				}
-				if ev, ok := norm.Normalize(r); ok {
+				if ev, ok := norm.Normalize(r); ok && !auditExclusions.Excluded(ev.Path) {
 					batch.Events = append(batch.Events, ev)
 				}
 			}

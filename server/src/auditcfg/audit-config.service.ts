@@ -291,9 +291,8 @@ export class AuditConfigService {
     return this.prisma.$transaction(async (tx) => {
       const p = await this.pathFor(r.user, id, tx);
       if (p.desiredState !== 'active') throw new BadRequestException('caminho já removido');
-      // Nunca aplicado: não há o que o agente desfazer.
-      const status = p.status === 'pending' && !p.appliedAt ? 'removed' : 'removing';
-      const row = await tx.auditedPath.update({ where: { id }, data: { desiredState: 'removed', status, lastError: null } });
+      // Mesmo nunca confirmado, o agente pode já ter aplicado: ele confirma a remoção.
+      const row = await tx.auditedPath.update({ where: { id }, data: { desiredState: 'removed', status: 'removing', lastError: null } });
       const version = await this.bump(tx, p.agentId);
       await this.logRequest(tx, r, p, 'remove', version, { before: optionsJson(p), hostname: p.agent.hostname });
       return pathJson(row);
@@ -337,6 +336,8 @@ export class AuditConfigService {
         id: p.id,
         path: p.path,
         state: p.desiredState,
+        // pending/removing: o portal pediu algo que o agente ainda não confirmou.
+        status: p.status,
         recursive: p.recursive,
         audit_read: p.auditRead,
         exclusions: p.exclusions,
@@ -409,6 +410,7 @@ export class AuditConfigService {
 
       const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: agent.tenantId } });
       const usage = await this.usage(agent.tenantId, tx);
+      const pct = usage.percent === null ? '' : `${String(usage.percent).replace('.', ',')}%`;
       if (usage.level > tenant.volumeAlertLevel) {
         await tx.alert.create({
           data: {
@@ -418,8 +420,8 @@ export class AuditConfigService {
             severity: usage.level === 100 ? 'critical' : 'warning',
             message:
               usage.level === 100
-                ? `O volume auditado atingiu ${usage.percent ?? 100}% do contratado. A auditoria continua; novos caminhos ficam bloqueados até ampliar a licença.`
-                : `O volume auditado chegou a ${usage.percent}% do contratado.`,
+                ? `O volume auditado atingiu ${pct || '100%'} do contratado. A auditoria continua; novos caminhos ficam bloqueados até ampliar a licença.`
+                : `O volume auditado chegou a ${pct} do contratado.`,
             details: usageJson(usage),
           },
         });
