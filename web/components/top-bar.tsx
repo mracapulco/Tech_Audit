@@ -3,7 +3,7 @@ import { logout } from '@/app/actions';
 import { Logo } from '@/components/logo';
 import type { CurrentUser } from '@/lib/api';
 
-export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' | 'eventos' | 'relatorios' | 'configuracao' | 'empresas' | 'usuarios' }) {
+export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' | 'eventos' | 'relatorios' | 'configuracao' | 'empresas' | 'usuarios' | 'conta' }) {
   const admin = user.role === 'msp_admin';
   const link = (key: typeof active, href: string, label: string) => (
     <Link href={href} className={active === key ? 'nav active' : 'nav'} aria-current={active === key ? 'page' : undefined}>
@@ -23,9 +23,9 @@ export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' |
         {admin && link('empresas', '/admin/empresas', 'Empresas')}
         {admin && link('usuarios', '/admin/usuarios', 'Usuários')}
       </nav>
-      <span className="muted who">
+      <Link href="/conta" className={active === 'conta' ? 'muted who active' : 'muted who'} title="Minha conta">
         {user.name} · {user.email}
-      </span>
+      </Link>
       <form action={logout}>
         <button type="submit" className="link">
           Sair

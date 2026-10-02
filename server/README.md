@@ -45,6 +45,8 @@ npm run -s cli -- user:create --email rafael@techmaster.inf.br --name "Rafael" -
 npm run -s cli -- user:create --email ti@cliente.com.br --name "TI Cliente" --role tenant_auditor --tenant <tenant_id>
 # Nova senha (encerra as sessões abertas)
 npm run -s cli -- user:password --email ti@cliente.com.br
+# Celular perdido: apaga a verificação em duas etapas (o próximo login cadastra de novo)
+npm run -s cli -- user:mfa-reset --email ti@cliente.com.br
 ```
 
 O normal é cadastrar pela tela Usuários do portal; a CLI fica para

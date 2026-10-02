@@ -117,6 +117,19 @@ export async function setUserPassword(db: PrismaService, email: string, password
   return { email: user.email, password: generated };
 }
 
+// Campos zerados ao desligar ou redefinir a verificação em duas etapas.
+export const clearMfa = { totpSecret: null, totpEnabledAt: null, totpLastStep: null, totpPendingSecret: null };
+
+// Apaga a verificação em duas etapas do usuário (celular perdido) e encerra
+// as sessões e logins pela metade.
+export async function resetUserMfa(db: PrismaService, where: { id: string } | { email: string }) {
+  const user = await db.user.update({ where: 'email' in where ? { email: where.email.trim().toLowerCase() } : where, data: clearMfa });
+  const id = user.id;
+  await db.userSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+  await db.loginChallenge.deleteMany({ where: { userId: id } });
+  return user;
+}
+
 // Cria o primeiro administrador da Tech Master se ainda não houver nenhum.
 // Usado na subida do contêiner (BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PASSWORD).
 export async function bootstrapAdmin(db: PrismaService, email: string, password: string, name = 'Administrador') {

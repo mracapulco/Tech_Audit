@@ -105,3 +105,10 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
   revalidatePath('/admin/usuarios');
   return { ok: 'Usuário excluído.' };
 }
+
+export async function resetMfa(userId: string): Promise<ActionResult> {
+  const r = await apiSend('POST', `/api/admin/users/${userId}/mfa/reset`);
+  if (!r.ok) return { error: r.error };
+  revalidatePath('/admin/usuarios');
+  return { ok: 'Verificação redefinida; as sessões abertas foram encerradas.' };
+}

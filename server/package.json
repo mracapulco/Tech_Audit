@@ -11,7 +11,7 @@
     "db:migrate": "prisma migrate deploy && node --env-file-if-exists=.env dist/cli.js migrate-events",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "test": "rm -rf dist-test && tsc -p tsconfig.test.json && node --env-file-if-exists=.env --test --test-concurrency=1 'dist-test/test/**/*.test.js'",
+    "test": "rm -rf dist-test && tsc -p tsconfig.test.json && MFA_REQUIRED_ROLES=none node --env-file-if-exists=.env --test --test-concurrency=1 'dist-test/test/**/*.test.js'",
     "postinstall": "prisma generate"
   },
   "dependencies": {

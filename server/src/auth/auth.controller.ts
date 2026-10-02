@@ -50,8 +50,33 @@ export class AuthController {
       throw new UnauthorizedException('e-mail ou senha incorretos');
     }
     this.throttle.reset(key);
+    // Senha certa, mas falta o código do autenticador (ou cadastrá-lo).
+    if (result.kind === 'verify') return { mfa: 'verify', challenge: result.challenge, expires_at: result.expiresAt };
+    if (result.kind === 'setup') {
+      return { mfa: 'setup', challenge: result.challenge, expires_at: result.expiresAt, secret: result.secret, otpauth_url: result.otpauthUrl };
+    }
     await this.audit.record({ userId: result.user.id, tenantId: result.user.tenantId, action: 'login', ip: req.ip });
     return { token: result.token, expires_at: result.expiresAt, user: toJson(result.user) };
+  }
+
+  // Segunda etapa: o desafio recebido no login e o código de 6 dígitos.
+  @Post('login/mfa')
+  @HttpCode(200)
+  async loginMfa(@Req() req: Request, @Body() body: unknown) {
+    const b = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+    const { challenge, code } = b;
+    if (typeof challenge !== 'string' || typeof code !== 'string' || !challenge || !code || challenge.length > 100 || code.length > 20) {
+      throw new BadRequestException('informe o código');
+    }
+    const { userId, outcome } = await this.auth.completeMfa(challenge, code, { ip: req.ip, userAgent: req.headers['user-agent'] });
+    if (outcome === 'locked') throw new HttpException('muitos códigos errados; aguarde 15 minutos', HttpStatus.TOO_MANY_REQUESTS);
+    if (outcome === 'expired') throw new UnauthorizedException('o tempo para digitar o código acabou; entre de novo');
+    if (outcome === 'invalid_code') {
+      await this.audit.record({ userId, action: 'login_mfa_failed', ip: req.ip });
+      throw new UnauthorizedException('código incorreto');
+    }
+    await this.audit.record({ userId: outcome.user.id, tenantId: outcome.user.tenantId, action: 'login', ip: req.ip, details: { mfa: true } });
+    return { token: outcome.token, expires_at: outcome.expiresAt, user: toJson(outcome.user) };
   }
 
   @Post('logout')
@@ -66,6 +91,43 @@ export class AuthController {
   @UseGuards(PortalAuthGuard)
   me(@Req() req: PortalRequest) {
     return toJson(req.user);
+  }
+
+  // --- Minha conta: verificação em duas etapas ---------------------------
+
+  @Get('mfa')
+  @UseGuards(PortalAuthGuard)
+  mfa(@Req() req: PortalRequest) {
+    return this.auth.mfaStatus(req.user.id);
+  }
+
+  @Post('mfa/setup')
+  @HttpCode(200)
+  @UseGuards(PortalAuthGuard)
+  mfaSetup(@Req() req: PortalRequest) {
+    return this.auth.startMfaSetup(req.user.id);
+  }
+
+  @Post('mfa/enable')
+  @HttpCode(200)
+  @UseGuards(PortalAuthGuard)
+  async mfaEnable(@Req() req: PortalRequest, @Body() body: unknown) {
+    const code = (body as Record<string, unknown> | null)?.code;
+    if (typeof code !== 'string' || !code || code.length > 20) throw new BadRequestException('informe o código');
+    if (!(await this.auth.confirmMfaSetup(req.user.id, code))) throw new BadRequestException('código incorreto; confira a hora do celular e tente de novo');
+    await this.audit.record({ userId: req.user.id, tenantId: req.user.tenantId, action: 'mfa.enable', ip: req.ip });
+    return { enabled: true };
+  }
+
+  @Post('mfa/disable')
+  @HttpCode(200)
+  @UseGuards(PortalAuthGuard)
+  async mfaDisable(@Req() req: PortalRequest, @Body() body: unknown) {
+    const password = (body as Record<string, unknown> | null)?.password;
+    if (typeof password !== 'string' || !password) throw new BadRequestException('informe a senha');
+    if (!(await this.auth.disableMfa(req.user.id, password))) throw new BadRequestException('senha incorreta');
+    await this.audit.record({ userId: req.user.id, tenantId: req.user.tenantId, action: 'mfa.disable', ip: req.ip });
+    return { enabled: false };
   }
 }
 
