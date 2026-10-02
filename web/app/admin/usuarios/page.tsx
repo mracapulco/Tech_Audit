@@ -4,7 +4,7 @@ import { ActionForm } from '@/components/action-form';
 import { TopBar } from '@/components/top-bar';
 import { apiGet, requireAdmin } from '@/lib/api';
 import { formatDateTimeShort, roleLabel } from '@/lib/format';
-import { createUser, deleteUser, resetPassword, setUserDisabled } from '../actions';
+import { createUser, deleteUser, resetMfa, resetPassword, setUserDisabled } from '../actions';
 
 export const metadata: Metadata = { title: 'Usuários · Tech Audit' };
 
@@ -17,6 +17,7 @@ interface UserRow {
   tenant_name: string | null;
   last_login_at: string | null;
   disabled_at: string | null;
+  mfa_enabled: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -104,6 +105,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                   <th>Empresa</th>
                   <th>Último acesso</th>
                   <th>Situação</th>
+                  <th>Duas etapas</th>
                   <th></th>
                 </tr>
               </thead>
@@ -116,6 +118,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     <td>{u.tenant_name ?? 'Tech Master'}</td>
                     <td className="nowrap">{formatDateTimeShort(u.last_login_at)}</td>
                     <td>{u.disabled_at ? <span className="pill neutral">Desativado</span> : <span className="pill ok">Ativo</span>}</td>
+                    <td>{u.mfa_enabled ? <span className="pill ok">Ativa</span> : <span className="pill neutral">Não</span>}</td>
                     <td>
                       <div className="row-actions">
                         {u.id !== me.id &&
@@ -135,6 +138,14 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                           secondary
                           confirm={`Gerar uma nova senha para ${u.email}? A senha atual deixa de funcionar.`}
                         />
+                        {u.mfa_enabled && u.id !== me.id && (
+                          <ActionForm
+                            action={resetMfa.bind(null, u.id)}
+                            submit="Redefinir 2 etapas"
+                            secondary
+                            confirm={`Redefinir a verificação em duas etapas de ${u.email}? Use quando a pessoa perdeu ou trocou o celular. No próximo login ela cadastra o aplicativo de novo.`}
+                          />
+                        )}
                         {u.id !== me.id && (
                           <ActionForm
                             action={deleteUser.bind(null, u.id)}

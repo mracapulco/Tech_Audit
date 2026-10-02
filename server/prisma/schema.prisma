@@ -178,10 +178,37 @@ model User {
   lastLoginAt  DateTime?     @map("last_login_at")
   disabledAt   DateTime?     @map("disabled_at")
   createdAt    DateTime      @default(now()) @map("created_at")
+  // Verificação em duas etapas (TOTP, Google Authenticator). totpSecret em
+  // base32; totpLastStep é o último código aceito, que não vale de novo.
+  totpSecret        String?   @map("totp_secret")
+  totpEnabledAt     DateTime? @map("totp_enabled_at")
+  totpLastStep      BigInt?   @map("totp_last_step")
+  // Segredo gerado em "Minha conta", até o usuário confirmar o primeiro código.
+  totpPendingSecret String?   @map("totp_pending_secret")
   sessions     UserSession[]
+  challenges   LoginChallenge[]
 
   @@index([tenantId])
   @@map("users")
+}
+
+// Login com senha certa aguardando o código do autenticador (kind "verify")
+// ou o cadastro do autenticador, obrigatório para o perfil (kind "setup").
+model LoginChallenge {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  kind      String
+  // Segredo novo, no cadastro.
+  secret    String?
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("login_challenges")
 }
 
 // Sessão do portal: token opaco, só o hash fica no banco. Sair ou desativar o
