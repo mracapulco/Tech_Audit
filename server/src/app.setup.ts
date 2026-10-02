@@ -1,8 +1,12 @@
 import { RequestMethod } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { agentPortFromEnv, agentPortOnly } from './agent-port.js';
 
 // Configuração comum ao main.ts e aos testes.
 export function configureApp(app: NestExpressApplication): NestExpressApplication {
+  app.disable('x-powered-by');
+  const agentPort = agentPortFromEnv();
+  if (agentPort) app.use(agentPortOnly(agentPort));
   // Portal em /api; agentes em /v1 (endpoint configurado no agent.json).
   app.setGlobalPrefix('api', { exclude: [{ path: 'v1/{*path}', method: RequestMethod.ALL }] });
   // Lotes chegam com Content-Encoding: gzip; o limite vale para o JSON já

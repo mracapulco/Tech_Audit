@@ -1,15 +1,20 @@
 :root {
+  /* Identidade visual da Tech Master (cores da logo) */
+  --brand-purple: #7a75b5;
+  --brand-purple-dark: #5f5aa0;
+  --brand-cyan: #5cc6d0;
+  --brand-green: #a8cf45;
   --bg: #f5f6f8;
   --surface: #fff;
   --text: #1c2330;
   --muted: #5d6779;
   --border: #d9dde5;
-  --accent: #1f5fbf;
+  --accent: var(--brand-purple-dark);
   --accent-text: #fff;
   --ok: #1b7a3d;
   --fail: #b42318;
   --error-bg: #fdecea;
-  --notice-bg: #eef4ff;
+  --notice-bg: #efeef8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,17 +24,17 @@
     --text: #e6e9ef;
     --muted: #9aa4b5;
     --border: #2f3846;
-    --accent: #5b9bff;
-    --accent-text: #0b1220;
+    --accent: #a9a5e6;
+    --accent-text: #14122e;
     --ok: #5cc98a;
     --fail: #ff8a80;
     --error-bg: #3a1d1b;
-    --notice-bg: #1c2a44;
+    --notice-bg: #262443;
   }
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+body { margin: 0; font-family: var(--font-brand), system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
 h1 { font-size: 1.4rem; margin: 0 0 16px; }
 a { color: var(--accent); }
 .muted { color: var(--muted); }
@@ -44,10 +49,6 @@ button:disabled { opacity: 0.6; cursor: default; }
 .button.secondary { background: transparent; color: var(--accent); }
 button.link { background: none; border: none; color: var(--accent); padding: 0; }
 
-.center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
-.login { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px; }
-.login h1 { margin: 0; }
-.login p { margin: 0; }
 
 .topbar { display: flex; gap: 16px; align-items: center; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .topbar .muted { margin-left: auto; font-size: 0.85rem; }
@@ -188,3 +189,54 @@ details.edit[open] { flex-basis: 100%; }
 .steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
 .steps .secret-row { margin-top: 6px; }
 details.section summary { cursor: pointer; font-weight: 600; }
+
+/* Marca e tela de login */
+.logo { display: inline-flex; align-items: center; gap: 8px; }
+.logo svg { flex: none; }
+.logo-name { font-weight: 900; letter-spacing: -0.01em; }
+.brand-link { color: var(--text); text-decoration: none; }
+.logo-lg { gap: 12px; color: #fff; }
+.logo-lg .logo-name { font-size: 1.5rem; }
+
+.login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+.login-brand {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 40px;
+  padding: 48px 56px; color: #e4e2f5;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(92, 198, 208, 0.45), transparent 42%),
+    radial-gradient(circle at 5% 98%, rgba(168, 207, 69, 0.32), transparent 38%),
+    linear-gradient(160deg, #6f6aad 0%, #4a4590 50%, #2c2960 100%);
+}
+.login-brand::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.35;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, #000, transparent 85%);
+}
+.login-brand > * { position: relative; }
+.login-pitch { max-width: 440px; }
+.login-pitch h2 { color: #fff; font-size: 2rem; line-height: 1.2; font-weight: 900; margin: 0 0 24px; letter-spacing: -0.01em; }
+.login-pitch ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.login-pitch li { position: relative; padding-left: 30px; line-height: 1.45; }
+.login-pitch li::before {
+  content: ''; position: absolute; left: 0; top: 2px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--brand-cyan) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='m5 9.2 2.6 2.6L13 6.4' fill='none' stroke='%232c2960' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 18px no-repeat;
+}
+.login-by { margin: 0; font-size: 0.9rem; color: #cfccec; display: flex; align-items: center; gap: 12px; }
+.login-by img { height: 36px; width: auto; filter: brightness(0) invert(1); opacity: 0.92; }
+
+.login-panel { display: grid; place-items: center; padding: 32px 24px; background: var(--surface); }
+.login { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; }
+.login h1 { margin: 0 0 4px; font-size: 1.8rem; font-weight: 900; }
+.login p { margin: 0; }
+.login input { padding: 10px 12px; }
+.login-mark { display: none; }
+.login-submit { padding: 11px 16px; font-weight: 600; margin-top: 4px; }
+
+@media (max-width: 860px) {
+  .login-page { grid-template-columns: 1fr; }
+  .login-brand { display: none; }
+  .login-panel { background: var(--bg); align-items: start; padding-top: 12vh; }
+  .login { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .login-mark { display: block; }
+}
