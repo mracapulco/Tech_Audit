@@ -150,10 +150,25 @@ describe('portal: administração', { skip }, () => {
     assert.equal(list.body[0].tenant_name, `Cliente ${id}`);
   });
 
-  it('administrador não desativa a si mesmo', async () => {
+  it('administrador não desativa nem exclui a si mesmo', async () => {
     const me = await call(admin, 'GET', '/auth/me');
-    const r = await call(admin, 'PATCH', `/admin/users/${me.body.id}`, { disabled: true });
-    assert.equal(r.status, 400);
+    assert.equal((await call(admin, 'PATCH', `/admin/users/${me.body.id}`, { disabled: true })).status, 400);
+    assert.equal((await call(admin, 'DELETE', `/admin/users/${me.body.id}`)).status, 400);
+  });
+
+  it('exclui usuário e encerra as sessões; o e-mail fica livre de novo', async () => {
+    const email = `excluir.${id}@cliente.com`;
+    const c = await call(admin, 'POST', '/admin/users', { email, name: 'Excluir', role: 'tenant_auditor', tenant_id: clientTenant });
+    const session = (await login(email, c.body.password)).token;
+    assert.equal((await call(client, 'DELETE', `/admin/users/${c.body.id}`)).status, 403);
+    assert.equal((await call(admin, 'DELETE', `/admin/users/${c.body.id}`)).status, 204);
+    assert.equal((await call(session, 'GET', '/auth/me')).status, 401);
+    assert.equal((await login(email, c.body.password)).status, 401);
+    assert.equal((await call(admin, 'DELETE', `/admin/users/${c.body.id}`)).status, 404);
+    const again = await call(admin, 'POST', '/admin/users', { email, name: 'De novo', role: 'tenant_auditor', tenant_id: clientTenant });
+    assert.equal(again.status, 201);
+    const log = await prisma.portalAuditLog.findFirst({ where: { action: 'admin.user.delete', details: { path: ['user'], equals: c.body.id } } });
+    assert.ok(log, 'exclusão registrada no log do portal');
   });
 
   it('bootstrap só cria administrador quando não há nenhum', async () => {

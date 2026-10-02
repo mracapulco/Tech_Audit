@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { PortalAuthGuard, type PortalRequest } from '../auth/portal-auth.guard.js';
 import { AuditLogService } from '../portal/audit-log.service.js';
 import { PrismaService } from '../prisma.service.js';
@@ -89,6 +89,27 @@ export class AdminUsersController {
       details: { user: id },
     });
     return { id: u.id, name: u.name, disabled_at: u.disabledAt };
+  }
+
+  // Exclui o usuário e as sessões dele. O histórico em portal_audit_log fica,
+  // com o id do usuário, para não perder a trilha de auditoria.
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(@Req() req: PortalRequest, @Param('id', ParseUUIDPipe) id: string) {
+    if (id === req.user.id) throw new BadRequestException('você não pode excluir o próprio usuário');
+    const u = await asBadRequest(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.userSession.deleteMany({ where: { userId: id } });
+        return tx.user.delete({ where: { id } });
+      }),
+    );
+    await this.audit.record({
+      userId: req.user.id,
+      tenantId: u.tenantId,
+      action: 'admin.user.delete',
+      ip: req.ip,
+      details: { user: id, email: u.email },
+    });
   }
 
   @Post(':id/password')

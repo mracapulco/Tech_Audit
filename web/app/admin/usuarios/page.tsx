@@ -4,7 +4,7 @@ import { ActionForm } from '@/components/action-form';
 import { TopBar } from '@/components/top-bar';
 import { apiGet, requireAdmin } from '@/lib/api';
 import { formatDateTimeShort, roleLabel } from '@/lib/format';
-import { createUser, resetPassword, setUserDisabled } from '../actions';
+import { createUser, deleteUser, resetPassword, setUserDisabled } from '../actions';
 
 export const metadata: Metadata = { title: 'Usuários · Tech Audit' };
 
@@ -134,6 +134,14 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                           secondary
                           confirm={`Gerar uma nova senha para ${u.email}? A senha atual deixa de funcionar.`}
                         />
+                        {u.id !== me.id && (
+                          <ActionForm
+                            action={deleteUser.bind(null, u.id)}
+                            submit="Excluir"
+                            secondary
+                            confirm={`Excluir ${u.email} de vez? Não dá para desfazer; o histórico de acessos continua guardado.`}
+                          />
+                        )}
                       </div>
                     </td>
                   </tr>

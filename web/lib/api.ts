@@ -78,7 +78,7 @@ export interface ActionResult {
 
 // Chamada de escrita para as ações do portal; nunca lança por erro da API.
 export async function apiSend<T>(
-  method: 'POST' | 'PATCH',
+  method: 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body: unknown = {},
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
@@ -97,7 +97,7 @@ export async function apiSend<T>(
   }
   if (r.status === 401) redirect('/login?expirada=1');
   if (!r.ok) return { ok: false, error: capitalize(await errorMessage(r)) };
-  return { ok: true, data: (await r.json()) as T };
+  return { ok: true, data: (r.status === 204 ? null : await r.json()) as T };
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);

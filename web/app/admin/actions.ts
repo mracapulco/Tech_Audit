@@ -98,3 +98,10 @@ export async function resetPassword(userId: string): Promise<ActionResult> {
   if (!r.ok) return { error: r.error };
   return { ok: 'Senha redefinida; as sessões abertas foram encerradas.', secret: { label: 'Nova senha.', value: r.data.password ?? '' } };
 }
+
+export async function deleteUser(userId: string): Promise<ActionResult> {
+  const r = await apiSend('DELETE', `/api/admin/users/${userId}`);
+  if (!r.ok) return { error: r.error };
+  revalidatePath('/admin/usuarios');
+  return { ok: 'Usuário excluído.' };
+}
