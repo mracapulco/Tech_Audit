@@ -179,12 +179,15 @@ func run(ctx context.Context, o options) error {
 				BufferEvents: st.BufferEvents, BufferBytes: st.BufferBytes, Pending: st.Pending,
 			})
 		}
+		// Caminhos auditados definidos no portal (aplica SACL/auditpol, mede pastas).
+		startAuditConfig(ctx, cfg, s.Client, s.Token)
 	}
 
 	n, _ := st.Stats()
 	log.Printf("techaudit-agent %s iniciado (agent_id=%s, endpoint=%s, %d eventos no buffer)", version, cfg.AgentID, cfg.Endpoint, n)
 	p := &pipeline.Pipeline{
 		Source: src, Store: st, Correlator: corr, Filter: cfg.Filter, Send: send, Heartbeat: heartbeat,
+		Exclude: func(path string) bool { return auditExclusions.Excluded(path) },
 		AgentID: cfg.AgentID, Hostname: hostname, Version: version,
 		BatchSize: cfg.BatchSize, FlushInterval: cfg.FlushInterval.Duration,
 		Logf: log.Printf,

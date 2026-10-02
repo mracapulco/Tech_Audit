@@ -20,5 +20,12 @@
     "aggregate_window": "60s",
     "bulk_threshold": 10,
     "bulk_gap": "5s"
+
+  },
+  "audit_config": {
+    "disabled": false,
+    "interval": "2m",
+    "verify_interval": "30m",
+    "size_interval": "6h"
   }
 }

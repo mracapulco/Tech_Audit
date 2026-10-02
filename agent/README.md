@@ -7,7 +7,8 @@ buffer local e envia ao servidor central por HTTP(S). Roda como o serviço
 **TechAuditAgent**, instalado por MSI ou pelo próprio executável.
 
 Antes de instalar, habilite a auditoria no servidor de arquivos:
-**[docs/auditoria-gpo.md](docs/auditoria-gpo.md)**.
+**[docs/auditoria-gpo.md](docs/auditoria-gpo.md)**, ou cadastre os caminhos no
+portal e deixe o agente aplicar: **[docs/configuracao-pelo-portal.md](docs/configuracao-pelo-portal.md)**.
 
 ## Instalar
 
@@ -166,6 +167,12 @@ com o arquivo presente, o registro é ignorado.
 | `correlation.aggregate_window` | `60s` | Junta repetições |
 | `correlation.bulk_threshold` | `10` | A partir de quantas alterações de permissão em sequência vira um evento só |
 | `correlation.bulk_gap` | `5s` | Intervalo máximo dentro de uma sequência |
+| `audit_config.disabled` | `false` | Não aplica os caminhos cadastrados no portal |
+| `audit_config.interval` | `2m` | Intervalo entre consultas da configuração |
+| `audit_config.verify_interval` | `30m` | Intervalo entre verificações de divergência |
+| `audit_config.size_interval` | `6h` | Intervalo entre medições do tamanho das pastas |
+| `audit_config.state_file` | `C:\ProgramData\TechAudit\audit-config-state.json` | O que o agente aplicou |
+| `audit_config.change_log` | `C:\ProgramData\TechAudit\audit-changes.log` | Log local de alterações (só acréscimo) |
 
 A versão 0.1 guardava a posição do log em `state_file`
 (`bookmark.xml`); a 0.2 lê esse arquivo uma vez e passa a usar o buffer.

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"time"
 
@@ -29,6 +30,9 @@ type Pipeline struct {
 	Store      *store.Store
 	Correlator *event.Correlator
 	Filter     event.Filter
+	// Exclude, se informado, descarta caminhos excluídos no portal (renomear
+	// e mover passam se origem ou destino não estiver excluído).
+	Exclude func(path string) bool
 	// Send envia um lote; erro = tentar de novo mais tarde.
 	Send func(context.Context, *event.Batch) error
 
@@ -136,6 +140,11 @@ func (p *Pipeline) collect(ctx context.Context) error {
 			out = append(out, p.Correlator.Flush()...)
 		}
 		p.mu.Unlock()
+		if p.Exclude != nil {
+			out = slices.DeleteFunc(out, func(e event.Event) bool {
+				return p.Exclude(e.Path) && (e.NewPath == "" || p.Exclude(e.NewPath))
+			})
+		}
 		if len(raw) > 0 || len(out) > 0 {
 			state := map[string][]byte{}
 			if len(raw) > 0 {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/mracapulco/Tech_Audit/agent/internal/auditcfg"
 	"github.com/mracapulco/Tech_Audit/agent/internal/event"
 )
 
@@ -52,6 +53,8 @@ type Config struct {
 	CAFile string `json:"ca_file"`
 	// Filter descarta ruído antes do envio.
 	Filter event.Filter `json:"filter"`
+	// AuditConfig controla a sincronização dos caminhos auditados com o portal.
+	AuditConfig auditcfg.Options `json:"audit_config"`
 	// Correlation ajusta como eventos brutos viram ações (criou, excluiu, renomeou...).
 	Correlation Correlation `json:"correlation"`
 }
