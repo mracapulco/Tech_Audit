@@ -14,7 +14,7 @@ Antes de instalar, habilite a auditoria no servidor de arquivos:
 ### MSI (recomendado, também por GPO)
 
 ```powershell
-msiexec /i TechAuditAgent-0.2.x.msi /qn ENDPOINT=https://audit.techmaster.com.br/v1/events ENROLLMENT_TOKEN=ta_enr_...
+msiexec /i TechAuditAgent-0.2.x.msi /qn ENDPOINT=https://ingest.audit.techmaster.inf.br/v1/events ENROLLMENT_TOKEN=ta_enr_...
 ```
 
 - Instala `C:\Program Files\TechAudit\techaudit-agent.exe` e o serviço
@@ -29,7 +29,7 @@ msiexec /i TechAuditAgent-0.2.x.msi /qn ENDPOINT=https://audit.techmaster.com.br
 ### Sem MSI
 
 ```powershell
-.\techaudit-agent.exe install -endpoint https://audit.techmaster.com.br/v1/events -enrollment-token ta_enr_...
+.\techaudit-agent.exe install -endpoint https://ingest.audit.techmaster.inf.br/v1/events -enrollment-token ta_enr_...
 .\techaudit-agent.exe uninstall
 ```
 

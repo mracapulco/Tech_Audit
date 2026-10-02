@@ -2,7 +2,7 @@
 <!--
   Instalador MSI do Tech Audit Agent (compilado com wixl, do msitools: make msi).
   Instalação silenciosa:
-    msiexec /i TechAuditAgent.msi /qn ENDPOINT=https://audit.techmaster.com.br/v1/events ENROLLMENT_TOKEN=ta_enr_...
+    msiexec /i TechAuditAgent.msi /qn ENDPOINT=https://ingest.audit.techmaster.inf.br/v1/events ENROLLMENT_TOKEN=ta_enr_...
   ENDPOINT e ENROLLMENT_TOKEN vão para HKLM\SOFTWARE\TechAudit\Agent, lidos pelo
   agente quando não existe C:\ProgramData\TechAudit\agent.json. Numa atualização
   sem ENDPOINT, o valor anterior é mantido (RegistrySearch). O agente apaga o
