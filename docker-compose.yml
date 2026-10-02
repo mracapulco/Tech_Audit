@@ -26,7 +26,11 @@ services:
       retries: 20
 
   server:
-    build: ./server
+    build:
+      context: ./server
+      # O instalador do agente (download no portal) é compilado de agent/.
+      additional_contexts:
+        agent: ./agent
     restart: unless-stopped
     depends_on:
       db:

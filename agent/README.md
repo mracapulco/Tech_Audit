@@ -12,11 +12,23 @@ portal e deixe o agente aplicar: **[docs/configuracao-pelo-portal.md](docs/confi
 
 ## Instalar
 
-### MSI (recomendado, também por GPO)
+### MSI com assistente (recomendado)
+
+Baixe o MSI no portal, em **Agente** (só com login; o download fica no log de
+acesso). Com duplo clique abre o assistente em português, que pede:
+
+- **Endereço do servidor**: o que o portal mostra na mesma tela (em produção,
+  `https://ingest.audit.techmaster.inf.br`). Não precisa de `/v1/events`: o
+  agente completa sozinho.
+- **Token de instalação**: gerado na página da empresa, começa com `ta_enr_`.
+
+### MSI sem telas (GPO ou script)
 
 ```powershell
-msiexec /i TechAuditAgent-0.2.x.msi /qn ENDPOINT=https://ingest.audit.techmaster.inf.br/v1/events ENROLLMENT_TOKEN=ta_enr_...
+msiexec /i TechAuditAgent-0.3.0.msi /qn ENDPOINT="https://ingest.audit.techmaster.inf.br" ENROLLMENT_TOKEN="ta_enr_..."
 ```
+
+Sem `/qn` o assistente abre já preenchido com esses valores.
 
 - Instala `C:\Program Files\TechAudit\techaudit-agent.exe` e o serviço
   `TechAuditAgent` (LocalSystem, início automático) e já o inicia.
@@ -24,7 +36,7 @@ msiexec /i TechAuditAgent-0.2.x.msi /qn ENDPOINT=https://ingest.audit.techmaster
   O agente apaga o `EnrollmentToken` do registro assim que se registra no
   servidor; o token próprio fica em `C:\ProgramData\TechAudit\credentials.json`.
 - Atualizar: rode o MSI novo sem parâmetros. Servidor, credenciais e buffer são mantidos.
-- Remover: "Aplicativos instalados" ou `msiexec /x TechAuditAgent-0.2.x.msi /qn`.
+- Remover: "Aplicativos instalados" ou `msiexec /x TechAuditAgent-0.3.0.msi /qn`.
   `C:\ProgramData\TechAudit` fica (apague à mão para remover tudo).
 
 ### Sem MSI
@@ -190,6 +202,12 @@ make test      # vet (Linux e Windows) + testes
 make windows   # dist/techaudit-agent.exe
 make msi       # dist/TechAuditAgent-<versão>.msi (requer wixl e msitools)
 ```
+
+A versão fica em `VERSION`. As telas do assistente estão em
+`installer/techaudit-agent.wxs` e as imagens em `installer/bitmaps`. A imagem
+Docker do servidor compila o MSI na hora do `docker compose build` e o oferece
+para download no portal; `DEFAULT_SERVER` (ou o build arg
+`AGENT_DEFAULT_SERVER`) muda a sugestão do campo "Endereço do servidor".
 
 O CI gera o `.exe` e o `.msi` a cada push (artefato
 `techaudit-agent-windows`). Ainda **não são assinados**: o Windows mostra o

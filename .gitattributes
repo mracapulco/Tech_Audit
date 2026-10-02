@@ -2,3 +2,5 @@
 # quando o repositório é clonado no Windows (core.autocrlf=true).
 *.sh text eol=lf
 Dockerfile text eol=lf
+*.bmp binary
+*.msi binary

@@ -183,3 +183,8 @@ details.edit summary { list-style: none; display: inline-block; border: 1px soli
 details.edit[open] { flex-basis: 100%; }
 .add-path summary { color: var(--accent); font-weight: 600; }
 .new-path { display: block; color: var(--muted); margin-top: 2px; }
+
+/* Instalar agente */
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
+.steps .secret-row { margin-top: 6px; }
+details.section summary { cursor: pointer; font-weight: 600; }

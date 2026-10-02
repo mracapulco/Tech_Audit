@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -17,10 +19,11 @@ func fromRegistry() (*Config, bool) {
 	defer k.Close()
 	get := func(name string) string {
 		v, _, _ := k.GetStringValue(name)
-		return v
+		return strings.TrimSpace(v)
 	}
 	c := &Config{
-		Endpoint:        get("Endpoint"),
+		// O instalador gráfico aceita só o endereço do servidor.
+		Endpoint:        NormalizeEndpoint(get("Endpoint")),
 		EnrollmentToken: get("EnrollmentToken"),
 		CAFile:          get("CAFile"),
 		Filter:          defaultFilter,

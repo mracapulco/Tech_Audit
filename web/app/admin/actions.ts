@@ -2,10 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { apiSend, type ActionResult } from '@/lib/api';
+import type { FormResult } from '@/components/action-form';
+import { agentServerUrl, silentInstallCommand } from '@/lib/agent';
+import { apiFetch, apiSend, sessionToken, type ActionResult } from '@/lib/api';
 import { agentConfig } from '@/lib/format';
 
-const AGENT_URL = process.env.PUBLIC_AGENT_URL ?? process.env.API_URL ?? 'http://localhost:3001';
+const AGENT_URL = agentServerUrl(process.env.PUBLIC_AGENT_URL ?? process.env.API_URL ?? 'http://localhost:3001');
 const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 
 export async function createTenant(_: ActionResult | undefined, f: FormData): Promise<ActionResult> {
@@ -42,7 +44,7 @@ export async function revokeLicense(tenantId: string, licenseId: string): Promis
   return { ok: 'Licença revogada.' };
 }
 
-export async function createToken(tenantId: string, _: ActionResult | undefined, f: FormData): Promise<ActionResult> {
+export async function createToken(tenantId: string, _: FormResult | undefined, f: FormData): Promise<FormResult> {
   const r = await apiSend<{ token: string; expires_at: string; max_uses: number }>('POST', `/api/admin/tenants/${tenantId}/tokens`, {
     description: str(f, 'description'),
     max_uses: str(f, 'max_uses'),
@@ -52,8 +54,25 @@ export async function createToken(tenantId: string, _: ActionResult | undefined,
   revalidatePath(`/admin/empresas/${tenantId}`);
   return {
     ok: `Token criado para ${r.data.max_uses} instalação(ões).`,
-    secret: { label: 'Token de instalação do agente.', value: r.data.token, config: agentConfig(AGENT_URL, r.data.token) },
+    secret: {
+      label: 'Token de instalação do agente.',
+      value: r.data.token,
+      server: AGENT_URL,
+      command: silentInstallCommand(await installerName(), AGENT_URL, r.data.token),
+      config: agentConfig(AGENT_URL, r.data.token),
+    },
   };
+}
+
+// Nome do MSI disponível para download, para o comando de instalação silenciosa.
+async function installerName(): Promise<string> {
+  try {
+    const r = await apiFetch('/api/agent/installer', { token: await sessionToken() });
+    const i = r.ok ? ((await r.json()) as { file_name?: string }) : {};
+    return i.file_name ?? 'TechAuditAgent.msi';
+  } catch {
+    return 'TechAuditAgent.msi';
+  }
 }
 
 export async function revokeToken(tenantId: string, tokenId: string): Promise<ActionResult> {

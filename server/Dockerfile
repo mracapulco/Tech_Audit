@@ -1,4 +1,27 @@
 # API do Tech Audit: portal (/api) e agentes (/v1).
+
+# Instalador do agente Windows, oferecido para download no portal. O código
+# vem de agent/ (additional_contexts "agent" no docker-compose.yml).
+FROM golang:1.24-bookworm AS agent-exe
+WORKDIR /src
+COPY --from=agent go.mod go.sum ./
+RUN go mod download
+COPY --from=agent . .
+RUN VERSION=$(tr -d '\r\n ' < VERSION) && \
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o /out/techaudit-agent.exe ./cmd/agent
+
+# wixl do Ubuntu 24.04 (0.103) monta as telas do assistente.
+FROM ubuntu:24.04 AS agent-msi
+RUN apt-get update && apt-get install -y --no-install-recommends wixl msitools && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY --from=agent VERSION ./
+COPY --from=agent installer ./installer
+COPY --from=agent-exe /out/techaudit-agent.exe /out/
+# Sugestão do campo "Endereço do servidor" no instalador.
+ARG AGENT_DEFAULT_SERVER=https://ingest.audit.techmaster.inf.br
+RUN sed -i 's/\r$//' installer/build-msi.sh && VERSION=$(tr -d '\r\n ' < VERSION) && mkdir -p /downloads && \
+    DEFAULT_SERVER="$AGENT_DEFAULT_SERVER" sh installer/build-msi.sh "$VERSION" /out/techaudit-agent.exe "/downloads/TechAuditAgent-$VERSION.msi"
+
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json prisma.config.ts ./
@@ -14,6 +37,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts /app/package.json ./
+COPY --from=agent-msi /downloads ./downloads
 COPY docker-entrypoint.sh /usr/local/bin/
 # Defesa extra contra CRLF vindo de um clone no Windows.
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh

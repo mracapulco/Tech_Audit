@@ -136,6 +136,16 @@ Resposta de `POST /v1/events`:
 { "batch_id": "...", "duplicate_batch": false, "received": 200, "inserted": 198, "duplicates": 2, "rejected": 0 }
 ```
 
+## Download do instalador do agente
+
+`GET /api/agent/installer` (versão, tamanho, SHA-256) e
+`GET /api/agent/installer/download` entregam o MSI mais novo da pasta
+`AGENT_DOWNLOADS_DIR` (padrão `downloads/`). Na imagem Docker o MSI é compilado
+de `agent/` durante o `docker compose build`; rodando com npm, use
+`AGENT_DOWNLOADS_DIR=../agent/dist` depois de `make msi`. Só Tech Master e
+administrador do cliente baixam, e cada download entra no `portal_audit_log`
+(`agent.download`).
+
 ## Testes
 
 `npm test` roda os testes unitários e, com `DATABASE_URL` definido e
