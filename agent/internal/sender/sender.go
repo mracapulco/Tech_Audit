@@ -32,6 +32,20 @@ type Sender struct {
 // é um PEM com a CA que assinou o certificado do servidor (ex.: CA interna),
 // adicionada às CAs do sistema.
 func New(endpoint, token, caFile string) (*Sender, error) {
+	client, err := NewHTTPClient(caFile)
+	if err != nil {
+		return nil, err
+	}
+	return &Sender{
+		Endpoint:   endpoint,
+		Token:      token,
+		Client:     client,
+		MaxBackoff: 5 * time.Minute,
+	}, nil
+}
+
+// NewHTTPClient cria o cliente HTTP usado com o servidor (envio e registro).
+func NewHTTPClient(caFile string) (*http.Client, error) {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	if caFile != "" {
 		pem, err := os.ReadFile(caFile)
@@ -47,12 +61,7 @@ func New(endpoint, token, caFile string) (*Sender, error) {
 		}
 		tr.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 	}
-	return &Sender{
-		Endpoint:   endpoint,
-		Token:      token,
-		Client:     &http.Client{Timeout: 30 * time.Second, Transport: tr},
-		MaxBackoff: 5 * time.Minute,
-	}, nil
+	return &http.Client{Timeout: 30 * time.Second, Transport: tr}, nil
 }
 
 // Send tenta enviar até conseguir ou até ctx ser cancelado. Erros 4xx (exceto

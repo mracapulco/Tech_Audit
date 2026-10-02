@@ -2,4 +2,7 @@
 
 package config
 
-const defaultStateFile = "techaudit-bookmark.xml"
+const (
+	defaultStateFile       = "techaudit-bookmark.xml"
+	defaultCredentialsFile = "techaudit-credentials.json"
+)

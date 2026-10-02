@@ -19,10 +19,13 @@ Requisitos: Node.js 22.12+, Go 1.24+, Docker.
 docker compose up -d                 # banco em localhost:5432
 
 cd server && cp .env.example .env
-npm install && npx prisma migrate dev
+npm install && npm run build && npm run db:migrate
 npm run start:dev                    # http://localhost:3001/api/health
 
 cd web && npm install && npm run dev # http://localhost:3000
 
 cd agent && go run ./cmd/agent
 ```
+
+Para registrar um agente e enviar eventos de ponta a ponta, veja
+[server/README.md](server/README.md).

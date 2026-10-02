@@ -1,4 +1,6 @@
-// Esquema inicial mínimo. O modelo de dados real vem com a definição da arquitetura.
+// Modelo relacional do Tech Audit (docs/ARCHITECTURE.md, seção 6.3).
+// Os eventos de arquivo ficam fora do Prisma: tabela events.file_events
+// (hypertable do TimescaleDB), criada por src/db/events-migrations.ts.
 
 generator client {
   provider = "prisma-client"
@@ -12,19 +14,131 @@ datasource db {
 
 // Empresa cliente da Tech Master.
 model Tenant {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  agents    Agent[]
+  id               String            @id @default(uuid()) @db.Uuid
+  name             String
+  createdAt        DateTime          @default(now()) @map("created_at")
+  agents           Agent[]
+  licenses         License[]
+  enrollmentTokens EnrollmentToken[]
+
+  @@map("tenants")
 }
 
-// Agente instalado em um servidor de arquivos do cliente.
+// Licença do tenant (seção 9.2). Um tenant pode ter várias; os limites das
+// licenças vigentes são somados.
+model License {
+  id             String              @id @default(uuid()) @db.Uuid
+  tenantId       String              @map("tenant_id") @db.Uuid
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
+  plan           String
+  maxAgents      Int                 @map("max_agents")
+  // Soma do tamanho dos diretórios auditados, em bytes.
+  maxVolumeBytes BigInt              @map("max_volume_bytes")
+  retentionDays  Int                 @map("retention_days")
+  validFrom      DateTime            @map("valid_from")
+  // Instante em que a licença vence; a ingestão segue aceita por graceDays.
+  validUntil     DateTime            @map("valid_until")
+  graceDays      Int                 @default(1) @map("grace_days")
+  revokedAt      DateTime?           @map("revoked_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  activations    LicenseActivation[]
+
+  @@index([tenantId])
+  @@map("licenses")
+}
+
+// Token de registro gerado no portal (seção 5). Só o hash é guardado.
+model EnrollmentToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  tokenHash   String    @unique @map("token_hash")
+  description String?
+  expiresAt   DateTime  @map("expires_at")
+  maxUses     Int       @map("max_uses")
+  uses        Int       @default(0)
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("enrollment_tokens")
+}
+
+// Agente instalado em um servidor de arquivos do cliente. Cada agente ativo
+// (disabledAt nulo) ocupa uma vaga da licença.
 model Agent {
-  id         String    @id @default(uuid())
-  tenantId   String
-  tenant     Tenant    @relation(fields: [tenantId], references: [id])
-  hostname   String
-  os         String
-  lastSeenAt DateTime?
-  createdAt  DateTime  @default(now())
+  id           String              @id @default(uuid()) @db.Uuid
+  tenantId     String              @map("tenant_id") @db.Uuid
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
+  hostname     String
+  os           String
+  // Hash estável da máquina enviado pelo agente; reinstalar reaproveita a vaga.
+  machineId    String              @map("machine_id")
+  agentVersion String?             @map("agent_version")
+  // Hash SHA-256 do token Bearer de longa duração (protótipo, antes do mTLS).
+  tokenHash    String              @unique @map("token_hash")
+  lastSeenAt   DateTime?           @map("last_seen_at")
+  disabledAt   DateTime?           @map("disabled_at")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  activations  LicenseActivation[]
+
+  @@unique([tenantId, machineId])
+  @@map("agents")
+}
+
+// Histórico de registros de agentes contra uma licença.
+model LicenseActivation {
+  id        String   @id @default(uuid()) @db.Uuid
+  licenseId String   @map("license_id") @db.Uuid
+  license   License  @relation(fields: [licenseId], references: [id])
+  agentId   String   @map("agent_id") @db.Uuid
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  hostname  String
+  machineId String   @map("machine_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([agentId])
+  @@map("license_activations")
+}
+
+// Lotes recebidos. Garante idempotência por (agent_id, batch_id) e guarda o
+// hash do conteúdo para provar integridade (seção 8).
+model IngestBatch {
+  agentId       String   @map("agent_id") @db.Uuid
+  batchId       String   @map("batch_id") @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  eventCount    Int      @map("event_count")
+  insertedCount Int      @map("inserted_count")
+  rejectedCount Int      @map("rejected_count")
+  sha256        String
+  receivedAt    DateTime @default(now()) @map("received_at")
+
+  @@id([agentId, batchId])
+  @@map("ingest_batches")
+}
+
+// Dicionário de caminhos, para não repetir strings longas em cada evento.
+// pathHash = SHA-256 do caminho em minúsculas (NTFS não diferencia caixa).
+model Path {
+  id       BigInt @id @default(autoincrement())
+  tenantId String @map("tenant_id") @db.Uuid
+  agentId  String @map("agent_id") @db.Uuid
+  pathHash Bytes  @map("path_hash")
+  path     String
+
+  @@unique([agentId, pathHash])
+  @@index([tenantId])
+  @@map("paths")
+}
+
+// Dicionário de identidades por tenant. key = SID ou DOMINIO\usuario em minúsculas.
+model Identity {
+  id       BigInt  @id @default(autoincrement())
+  tenantId String  @map("tenant_id") @db.Uuid
+  key      String
+  sid      String?
+  domain   String
+  name     String
+
+  @@unique([tenantId, key])
+  @@map("identities")
 }

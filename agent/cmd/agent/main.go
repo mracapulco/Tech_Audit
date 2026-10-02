@@ -11,12 +11,15 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
 	"github.com/mracapulco/Tech_Audit/agent/internal/config"
+	"github.com/mracapulco/Tech_Audit/agent/internal/enroll"
 	"github.com/mracapulco/Tech_Audit/agent/internal/event"
 	"github.com/mracapulco/Tech_Audit/agent/internal/sender"
 	"github.com/mracapulco/Tech_Audit/agent/internal/source"
@@ -61,6 +64,9 @@ func main() {
 	}
 	defer src.Close()
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	var send func(context.Context, *event.Batch) error
 	if *stdout {
 		enc := json.NewEncoder(os.Stdout)
@@ -71,12 +77,17 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		if s.Token == "" {
+			if s.Token, err = agentToken(ctx, cfg, s.Client); err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+				log.Fatal(err)
+			}
+		}
 		s.Logf = log.Printf
 		send = s.Send
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	log.Printf("techaudit-agent %s iniciado (agent_id=%s, endpoint=%s)", version, cfg.AgentID, cfg.Endpoint)
 	if err := run(ctx, cfg, src, send); err != nil && !errors.Is(err, context.Canceled) {
@@ -119,6 +130,57 @@ func run(ctx context.Context, cfg *config.Config, src source.Source, send func(c
 		}
 		if eof {
 			return nil
+		}
+	}
+}
+
+// agentToken devolve o token salvo no registro anterior ou registra o agente
+// com o enrollment_token. Falhas de registro (servidor fora do ar, licença
+// sem vagas) são tentadas de novo a cada minuto.
+func agentToken(ctx context.Context, cfg *config.Config, client *http.Client) (string, error) {
+	creds, err := enroll.Load(cfg.CredentialsFile)
+	if err != nil {
+		return "", err
+	}
+	if creds != nil {
+		return creds.AgentToken, nil
+	}
+	if cfg.EnrollmentToken == "" {
+		return "", errors.New("configure token ou enrollment_token")
+	}
+	enrollURL, err := enroll.URL(cfg.Endpoint)
+	if err != nil {
+		return "", err
+	}
+	machineID, err := enroll.MachineID()
+	if err != nil {
+		return "", fmt.Errorf("identificando a máquina: %w", err)
+	}
+	hostname, _ := os.Hostname()
+	req := enroll.Request{
+		EnrollmentToken: cfg.EnrollmentToken,
+		Hostname:        hostname,
+		MachineID:       machineID,
+		OS:              runtime.GOOS,
+		AgentVersion:    version,
+	}
+	for {
+		creds, err := enroll.Enroll(ctx, client, enrollURL, req)
+		if err == nil {
+			if err := enroll.Save(cfg.CredentialsFile, creds); err != nil {
+				return "", fmt.Errorf("salvando credenciais: %w", err)
+			}
+			log.Printf("agente registrado (agent_id=%s); credenciais em %s", creds.AgentID, cfg.CredentialsFile)
+			return creds.AgentToken, nil
+		}
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		log.Printf("%v; nova tentativa em 1 min", err)
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(time.Minute):
 		}
 	}
 }
