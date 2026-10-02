@@ -3,7 +3,9 @@ package fsinfo
 import (
 	"encoding/binary"
 	"errors"
-
+	"log"
+	"sync"
+	"time"
 	"unicode/utf16"
 	"unsafe"
 
@@ -27,23 +29,33 @@ func open(path string, access uint32) (windows.Handle, error) {
 		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
 }
 
+// Stat lê os horários pelo caminho (GetFileAttributesEx), sem abrir o
+// arquivo: funciona com o arquivo em uso e não depende do alinhamento de
+// buffer exigido pelo GetFileInformationByHandleEx. O ChangeTime não vem
+// nessa consulta; quem precisa dele usa ListDir.
 func (l *Local) Stat(path string) (event.FileInfo, error) {
-	h, err := open(path, windows.FILE_READ_ATTRIBUTES)
+	p, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return event.FileInfo{}, err
 	}
-	defer windows.CloseHandle(h)
-	// FILE_BASIC_INFO: CreationTime, LastAccessTime, LastWriteTime, ChangeTime (int64) e FileAttributes (uint32).
-	var b [40]byte
-	if err := windows.GetFileInformationByHandleEx(h, windows.FileBasicInfo, &b[0], uint32(len(b))); err != nil {
+	var d windows.Win32FileAttributeData
+	if err := windows.GetFileAttributesEx(p, windows.GetFileExInfoStandard, (*byte)(unsafe.Pointer(&d))); err != nil {
+		if !errors.Is(err, windows.ERROR_FILE_NOT_FOUND) && !errors.Is(err, windows.ERROR_PATH_NOT_FOUND) {
+			statErrOnce.Do(func() { log.Printf("aviso: não foi possível ler os horários de %s: %v", path, err) })
+		}
 		return event.FileInfo{}, err
 	}
 	return event.FileInfo{
-		IsDir:    binary.LittleEndian.Uint32(b[32:])&windows.FILE_ATTRIBUTE_DIRECTORY != 0,
-		Created:  filetime(binary.LittleEndian.Uint64(b[0:])),
-		Modified: filetime(binary.LittleEndian.Uint64(b[16:])),
-		Changed:  filetime(binary.LittleEndian.Uint64(b[24:])),
+		IsDir:    d.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0,
+		Created:  ft(d.CreationTime),
+		Modified: ft(d.LastWriteTime),
 	}, nil
+}
+
+var statErrOnce sync.Once
+
+func ft(f windows.Filetime) time.Time {
+	return filetime(uint64(f.HighDateTime)<<32 | uint64(f.LowDateTime))
 }
 
 // ListDir lê a pasta com FileIdBothDirectoryInfo, que já traz os quatro

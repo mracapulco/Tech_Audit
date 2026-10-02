@@ -256,6 +256,9 @@ func (c *Correlator) add(ev Event, out *[]Event) {
 		c.emit(ev, out)
 	case IDPermsChanged:
 		c.rememberHandle(key, ev.Path)
+		if c.permsOnCreate(ev) || c.createdWithPerms(ev, out) {
+			return
+		}
 		ev.Action = ActionPermissionChanged
 		c.bulk(ev, out)
 	case IDObjectAccess:
@@ -267,8 +270,8 @@ func (c *Correlator) add(ev Event, out *[]Event) {
 		switch {
 		case acts["delete"]:
 			c.push(&pending{Type: pendDelete, Key: key, Deadline: ev.Time.Add(c.cfg.Window), Event: ev})
-		case acts["permission_change"] && c.permsOnCreate(ev):
-			// O Explorer ajusta a DACL logo depois de copiar: faz parte do "criou".
+		case acts["permission_change"] && (c.permsOnCreate(ev) || c.createdWithPerms(ev, out)):
+			// O Explorer ajusta a DACL ao copiar: faz parte do "criou".
 		case acts["permission_change"]:
 			ev.Action = ActionPermissionChanged
 			c.bulk(ev, out)
@@ -321,6 +324,26 @@ func (c *Correlator) permsOnCreate(ev Event) bool {
 	p.Event.Actions = union(p.Event.Actions, ev.Actions)
 	p.Event.RelatedRecords = append(p.Event.RelatedRecords, ev.RecordID)
 	p.Event.Details = mergeDetails(p.Event.Details, map[string]string{"permissions_set_on_create": "true"})
+	if ev.EventID == IDPermsChanged {
+		p.Event.Details = mergeDetails(p.Event.Details, ev.Details) // SDDL antes/depois
+	}
+	return true
+}
+
+// createdWithPerms trata a alteração de permissão que chega antes da
+// escrita: o Explorer define a DACL do arquivo copiado logo ao criá-lo. Se o
+// item acabou de ser criado, o evento vira o "criou" (e as escritas
+// seguintes se juntam a ele).
+func (c *Correlator) createdWithPerms(ev Event, out *[]Event) bool {
+	info, err := c.stat(ev.Path)
+	if err != nil || absDur(info.Created.Sub(ev.Time)) > c.cfg.Window+clockSlack {
+		return false
+	}
+	ev.Action = ActionCreated
+	ev.ItemType = itemType(info.IsDir)
+	ev.Details = mergeDetails(ev.Details, map[string]string{"permissions_set_on_create": "true"})
+	c.st.Created[strings.ToLower(ev.Path)] = ev.Time
+	c.aggregate(ev, out)
 	return true
 }
 

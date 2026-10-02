@@ -67,6 +67,10 @@ func raw(id int, at time.Duration, path, mask, handle string) Event {
 		ev.Kind = "object_access"
 		ev.Actions = ActionsFromMask(mask)
 	}
+	if p, stream := splitStream(path); stream != "" {
+		ev.Path = p
+		ev.Details = map[string]string{"stream": stream}
+	}
 	return ev
 }
 
@@ -345,6 +349,25 @@ func TestExplorerCopyIsOneCreated(t *testing.T) {
 	).flush()
 	ev := one(t, out)
 	if ev.Action != ActionCreated || ev.Details["permissions_set_on_create"] != "true" {
+		t.Errorf("cópia: %+v", ev)
+	}
+}
+
+// Sequência vista num Windows 11: o Explorer define a DACL do arquivo novo
+// antes de escrever nele.
+func TestExplorerCopyPermsFirst(t *testing.T) {
+	fs := newFS()
+	fs.addDir(`C:\Dados`)
+	fs.addEntry(`C:\Dados`, "setup.exe", false, t0, t0.Add(-48*time.Hour), t0)
+	out := newRun(t, fs).add(
+		raw(IDObjectAccess, 0, `C:\Dados\setup.exe`, "0x40000", "0x20"),
+		raw(IDObjectAccess, 100*time.Millisecond, `C:\Dados\setup.exe`, "0x2", "0x21"),
+		raw(IDObjectAccess, 120*time.Millisecond, `C:\Dados\setup.exe`, "0x4", "0x21"),
+		raw(IDObjectAccess, 150*time.Millisecond, `C:\Dados\setup.exe:Zone.Identifier`, "0x2", "0x22"),
+		raw(IDObjectAccess, 200*time.Millisecond, `C:\Dados\setup.exe`, "0x100", "0x21"),
+	).flush()
+	ev := one(t, out)
+	if ev.Action != ActionCreated || ev.Details["permissions_set_on_create"] != "true" || ev.ItemType != "file" {
 		t.Errorf("cópia: %+v", ev)
 	}
 }

@@ -184,7 +184,7 @@ func run(ctx context.Context, o options) error {
 	}
 
 	n, _ := st.Stats()
-	log.Printf("techaudit-agent %s iniciado (agent_id=%s, endpoint=%s, %d eventos no buffer)", version, cfg.AgentID, cfg.Endpoint, n)
+	log.Printf("techaudit-agent %s iniciado (computador=%s, endpoint=%s, %d eventos no buffer)", version, cfg.AgentID, cfg.Endpoint, n)
 	p := &pipeline.Pipeline{
 		Source: src, Store: st, Correlator: corr, Filter: cfg.Filter, Send: send, Heartbeat: heartbeat,
 		Exclude: func(path string) bool { return auditExclusions.Excluded(path) },
