@@ -36,10 +36,10 @@ Os dados ficam no volume `db-data` e sobrevivem a atualizações e reinícios.
 ## Produção
 
 - Coloque o portal e a API atrás do proxy reverso com HTTPS (Traefik, Nginx),
-  por exemplo `audit.techmaster.com.br` → `web:3000` e
-  `ingest.audit.techmaster.com.br` → `server:3001`.
+  por exemplo `audit.techmaster.inf.br` → `web:3000` e
+  `ingest.audit.techmaster.inf.br` → `server:3001`.
 - No `.env`: `COOKIE_SECURE=true` (o login exige HTTPS) e
-  `PUBLIC_AGENT_URL=https://ingest.audit.techmaster.com.br` (vai no
+  `PUBLIC_AGENT_URL=https://ingest.audit.techmaster.inf.br` (vai no
   `agent.json` gerado pelo portal).
 - Senhas fortes em `POSTGRES_PASSWORD` (só letras e números) e
   `BOOTSTRAP_ADMIN_PASSWORD`. Depois do primeiro login, as linhas

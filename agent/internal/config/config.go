@@ -13,7 +13,7 @@ import (
 
 // Config é o conteúdo do arquivo agent.json.
 type Config struct {
-	// Endpoint recebe os lotes via HTTP POST (ex.: https://audit.techmaster.com.br/v1/events).
+	// Endpoint recebe os lotes via HTTP POST (ex.: https://audit.techmaster.inf.br/v1/events).
 	Endpoint string `json:"endpoint"`
 	// Token é enviado no cabeçalho "Authorization: Bearer <token>". Se vazio,
 	// o agente usa o token salvo em CredentialsFile ou se registra com
