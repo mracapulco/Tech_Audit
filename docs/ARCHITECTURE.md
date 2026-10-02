@@ -393,7 +393,6 @@ Ferramentas: pnpm workspaces + Turborepo para a parte TypeScript; `go` modules n
 6. **Hospedagem**: dentro da Tech Master, em Docker (seção 3).
 7. **On-premises**: não haverá (seção 9.4).
 8. **Domínios**: `audit.techmaster.inf.br` (portal) e `ingest.audit.techmaster.inf.br` (agentes).
+9. **Autenticação do agente**: token de longa duração durante o desenvolvimento e o piloto; migração para mTLS (certificado por agente, seção 5) antes da venda para clientes (fase 5).
 
-### Em aberto
-
-1. **Autenticação do agente**: o protótipo usa token de longa duração; proposta é migrar para mTLS (certificado por agente, seção 5) antes de ir para produção.
+Não há decisões de arquitetura em aberto no momento.
