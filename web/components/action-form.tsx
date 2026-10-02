@@ -1,7 +1,11 @@
 'use client';
 
 import { useActionState, useState, type ReactNode } from 'react';
+import { CopyField } from '@/components/copy-field';
 import type { ActionResult } from '@/lib/api';
+
+// Resultado com os dados de instalação do agente (token gerado no portal).
+export type FormResult = ActionResult & { secret?: { server?: string; command?: string } };
 
 // Formulário que chama uma server action e mostra o resultado no lugar:
 // erro, confirmação ou um valor que só aparece uma vez (senha, token).
@@ -13,7 +17,7 @@ export function ActionForm({
   confirm,
   secondary,
 }: {
-  action: (prev: ActionResult | undefined, form: FormData) => Promise<ActionResult>;
+  action: (prev: FormResult | undefined, form: FormData) => Promise<FormResult>;
   submit: string;
   children?: ReactNode;
   className?: string;
@@ -56,34 +60,53 @@ function fillConfirm(text: string, form: HTMLFormElement): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(data.get(name) ?? '').trim());
 }
 
-function Secret({ label, value, config, message }: { label: string; value: string; config?: string; message?: string }) {
-  const [copied, setCopied] = useState<string | null>(null);
-  const copy = async (text: string, what: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(what);
-    } catch {
-      setCopied(null);
-    }
-  };
+function Secret({
+  label,
+  value,
+  config,
+  server,
+  command,
+  message,
+}: NonNullable<FormResult['secret']> & { message?: string }) {
+  const [copied, setCopied] = useState(false);
   return (
     <div className="secret" role="status">
       {message && <p>{message}</p>}
       <p className="muted small">{label} Ele não será mostrado de novo; copie agora.</p>
-      <div className="secret-row">
-        <code>{value}</code>
-        <button type="button" className="secondary small-btn" onClick={() => copy(value, 'valor')}>
-          {copied === 'valor' ? 'Copiado' : 'Copiar'}
-        </button>
-      </div>
-      {config && (
+      <CopyField value={value} />
+      {server && (
         <>
-          <p className="muted small">Arquivo agent.json para o servidor do cliente:</p>
-          <pre className="code">{config}</pre>
-          <button type="button" className="secondary small-btn" onClick={() => copy(config, 'config')}>
-            {copied === 'config' ? 'Copiado' : 'Copiar agent.json'}
-          </button>
+          <p className="muted small">
+            No instalador do agente (<a href="/agente">Instalar agente</a>), informe este endereço do servidor e o token acima:
+          </p>
+          <CopyField value={server} />
         </>
+      )}
+      {command && (
+        <details>
+          <summary className="small">Instalação sem telas (GPO ou script)</summary>
+          <CopyField value={command} />
+        </details>
+      )}
+      {config && (
+        <details>
+          <summary className="small">Instalação manual com agent.json</summary>
+          <pre className="code">{config}</pre>
+          <button
+            type="button"
+            className="secondary small-btn"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(config);
+                setCopied(true);
+              } catch {
+                setCopied(false);
+              }
+            }}
+          >
+            {copied ? 'Copiado' : 'Copiar agent.json'}
+          </button>
+        </details>
       )}
     </div>
   );

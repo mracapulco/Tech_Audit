@@ -1,0 +1,5 @@
+dist
+*.db
+*.log
+agent.json
+credentials.json

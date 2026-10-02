@@ -70,7 +70,7 @@ jobs:
       - run: go build ./...
       # Instalador MSI gerado no Linux com wixl (msitools).
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends wixl msitools
-      - run: make msi VERSION=0.2.${{ github.run_number }}
+      - run: make msi
       - uses: actions/upload-artifact@v4
         with:
           name: techaudit-agent-windows

@@ -329,8 +329,9 @@ Regras:
 ### 9.3 Distribuição do instalador
 
 - Um único **MSI genérico, assinado** com o certificado de code signing da Tech Master. O instalador não contém segredos.
-- O download só acontece **pelo portal autenticado** (área do tenant ou área MSP), registrado em `installer_downloads` (quem, quando, versão, IP).
-- Junto com o download o portal gera o **token de registro** daquele tenant (validade curta, número máximo de usos, opcionalmente amarrado a um site). O comando de instalação exibido já traz o token.
+- O download só acontece **pelo portal autenticado** (Tech Master e administrador do cliente; o auditor do cliente não baixa), registrado no log de acesso do portal (`portal_audit_log`, ação `agent.download`: quem, quando, versão, hash, IP).
+- O MSI tem um **assistente em português** que pede o endereço do servidor e o token; a mesma tela do portal mostra o endereço a digitar e o SHA-256 do arquivo.
+- O **token de registro** é gerado pela Tech Master na página da empresa (validade curta, número máximo de usos). Ao gerar, o portal mostra o token, o endereço do servidor e o comando de instalação silenciosa já com o token.
 - Os tokens podem ser revogados a qualquer momento, e cada uso fica registrado.
 - O agente valida o certificado do servidor contra a **CA do Tech Audit embutida no binário** (pinning). Assim ele não pode ser apontado para um servidor não autorizado.
 - O heartbeat envia a versão e o hash do binário. Versões não assinadas, adulteradas ou muito antigas aparecem no portal MSP e podem ser bloqueadas.

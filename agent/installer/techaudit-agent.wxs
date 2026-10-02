@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Instalador MSI do Tech Audit Agent (compilado com wixl, do msitools: make msi).
-  Instalação silenciosa:
-    msiexec /i TechAuditAgent.msi /qn ENDPOINT=https://ingest.audit.techmaster.inf.br/v1/events ENROLLMENT_TOKEN=ta_enr_...
+
+  Com duplo clique abre o assistente em português, que pede o endereço do
+  servidor e o token de instalação gerado no portal.
+
+  Instalação silenciosa (sem telas):
+    msiexec /i TechAuditAgent.msi /qn ENDPOINT=https://ingest.audit.techmaster.inf.br ENROLLMENT_TOKEN=ta_enr_...
+  Os mesmos parâmetros sem /qn abrem o assistente já preenchido.
+
   ENDPOINT e ENROLLMENT_TOKEN vão para HKLM\SOFTWARE\TechAudit\Agent, lidos pelo
-  agente quando não existe C:\ProgramData\TechAudit\agent.json. Numa atualização
-  sem ENDPOINT, o valor anterior é mantido (RegistrySearch). O agente apaga o
+  agente quando não existe C:\ProgramData\TechAudit\agent.json. ENDPOINT pode
+  ser só o endereço do servidor; o agente completa com /v1/events. Numa
+  atualização o valor anterior é mantido (RegistrySearch). O agente apaga o
   EnrollmentToken do registro assim que obtém o próprio token.
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
@@ -17,11 +24,14 @@
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes"/>
     <MajorUpgrade DowngradeErrorMessage="Uma versão mais nova do Tech Audit Agent já está instalada."/>
 
+    <!-- Sem valor padrão: quem instala precisa digitar o endereço que o portal
+         mostra (homologação e produção usam endereços diferentes). -->
     <Property Id="ENDPOINT">
       <RegistrySearch Id="PrevEndpoint" Root="HKLM" Key="SOFTWARE\TechAudit\Agent" Name="Endpoint" Type="raw" Win64="yes"/>
     </Property>
     <Property Id="ENROLLMENT_TOKEN"/>
     <Property Id="ARPNOMODIFY" Value="1"/>
+    <Property Id="ARPCONTACT" Value="Tech Master"/>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
@@ -49,6 +59,228 @@
       <ComponentRef Id="AgentEnrollment"/>
     </Feature>
 
-    <Condition Message="Informe o servidor: msiexec /i TechAuditAgent.msi ENDPOINT=https://.../v1/events ENROLLMENT_TOKEN=...">Installed OR ENDPOINT</Condition>
+    <!-- Com o assistente (UILevel 5) o endereço é pedido na tela; sem telas, na linha de comando. -->
+    <Condition Message="Informe o servidor: msiexec /i TechAuditAgent.msi ENDPOINT=https://... ENROLLMENT_TOKEN=...">Installed OR ENDPOINT OR UILevel = 5</Condition>
+
+    <UIRef Id="TechAuditUI"/>
   </Product>
+
+  <!-- Assistente gráfico. Imagens em installer/bitmaps (cores do portal). -->
+  <Fragment>
+    <Binary Id="TA_Banner" SourceFile="$(var.BitmapDir)/banner.bmp"/>
+    <Binary Id="TA_Dialog" SourceFile="$(var.BitmapDir)/dialog.bmp"/>
+
+    <UI Id="TechAuditUI">
+      <TextStyle Id="TA_Normal" FaceName="Segoe UI" Size="9"/>
+      <TextStyle Id="TA_Title" FaceName="Segoe UI" Size="9" Bold="yes"/>
+      <TextStyle Id="TA_Big" FaceName="Segoe UI" Size="14" Bold="yes"/>
+      <TextStyle Id="TA_Small" FaceName="Segoe UI" Size="8" Red="93" Green="103" Blue="121"/>
+      <Property Id="DefaultUIFont" Value="TA_Normal"/>
+      <Property Id="ErrorDialog" Value="ErrorDlg"/>
+
+      <!-- 1. Boas-vindas -->
+      <Dialog Id="BemVindoDlg" Width="370" Height="270" Title="Instalação do [ProductName]">
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="TA_Dialog"/>
+        <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="{\TA_Big}Bem-vindo ao Tech Audit"/>
+        <Control Id="Description" Type="Text" X="135" Y="65" Width="220" Height="120" Transparent="yes" NoPrefix="yes"
+                 Text="Este assistente instala o agente do Tech Audit neste servidor de arquivos.&#13;&#10;&#13;&#10;O agente roda como serviço do Windows, lê a auditoria de acesso a arquivos e envia para o portal Tech Audit da Tech Master.&#13;&#10;&#13;&#10;Tenha em mãos o token de instalação gerado no portal. Clique em Avançar para continuar."/>
+        <Control Id="Version" Type="Text" X="135" Y="215" Width="220" Height="12" Transparent="yes" NoPrefix="yes" Text="{\TA_Small}Versão [ProductVersion]"/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="&lt; Voltar"/>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="Avançar &gt;">
+          <Publish Event="NewDialog" Value="ServidorDlg" Condition="1"/>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancelar">
+          <Publish Event="SpawnDialog" Value="CancelarDlg" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <!-- 2. Servidor e token -->
+      <Dialog Id="ServidorDlg" Width="370" Height="270" Title="Instalação do [ProductName]">
+        <!-- Os campos vêm primeiro para o cursor já começar no endereço. -->
+        <Control Id="EndpointEdit" Type="Edit" X="20" Y="69" Width="330" Height="16" Property="ENDPOINT" Text="{255}"/>
+        <Control Id="TokenEdit" Type="Edit" X="20" Y="123" Width="330" Height="16" Property="ENROLLMENT_TOKEN" Text="{255}"/>
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="TA_Banner"/>
+        <Control Id="Title" Type="Text" X="15" Y="8" Width="340" Height="14" Transparent="yes" NoPrefix="yes" Text="{\TA_Title}Conexão com o Tech Audit"/>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="330" Height="14" Transparent="yes" NoPrefix="yes" Text="Copie os dois valores da tela Instalar agente do portal."/>
+        <Control Id="EndpointLabel" Type="Text" X="20" Y="56" Width="330" Height="12" NoPrefix="yes" Text="Endereço do servidor:"/>
+        <Control Id="EndpointHint" Type="Text" X="20" Y="88" Width="330" Height="12" NoPrefix="yes" Text="{\TA_Small}Exemplo: https://ingest.audit.techmaster.inf.br"/>
+        <Control Id="TokenLabel" Type="Text" X="20" Y="110" Width="330" Height="12" NoPrefix="yes" Text="Token de instalação:"/>
+        <Control Id="TokenHint" Type="Text" X="20" Y="142" Width="330" Height="24" NoPrefix="yes" Text="{\TA_Small}Começa com ta_enr_. Vale para poucas instalações e por tempo limitado; se expirar, gere outro no portal."/>
+        <Control Id="UpgradeHint" Type="Text" X="20" Y="172" Width="330" Height="24" NoPrefix="yes" Hidden="yes"
+                 Text="{\TA_Small}Atualização: este servidor já está registrado, então o token pode ficar em branco." ShowCondition="WIX_UPGRADE_DETECTED"/>
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0"/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&lt; Voltar">
+          <Publish Event="NewDialog" Value="BemVindoDlg" Condition="1"/>
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="Avançar &gt;">
+          <Publish Event="SpawnDialog" Value="SemEnderecoDlg" Condition="NOT ENDPOINT"/>
+          <Publish Event="SpawnDialog" Value="SemTokenDlg" Condition="ENDPOINT AND NOT ENROLLMENT_TOKEN AND NOT WIX_UPGRADE_DETECTED"/>
+          <Publish Event="SpawnDialog" Value="TokenInvalidoDlg" Condition="ENDPOINT AND ENROLLMENT_TOKEN AND NOT (ENROLLMENT_TOKEN &lt;&lt; &quot;ta_enr_&quot;)"/>
+          <Publish Event="NewDialog" Value="ProntoDlg" Condition="ENDPOINT AND ((ENROLLMENT_TOKEN &lt;&lt; &quot;ta_enr_&quot;) OR (NOT ENROLLMENT_TOKEN AND WIX_UPGRADE_DETECTED))"/>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancelar">
+          <Publish Event="SpawnDialog" Value="CancelarDlg" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <!-- 3. Confirmação -->
+      <Dialog Id="ProntoDlg" Width="370" Height="270" Title="Instalação do [ProductName]">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="TA_Banner"/>
+        <Control Id="Title" Type="Text" X="15" Y="8" Width="340" Height="14" Transparent="yes" NoPrefix="yes" Text="{\TA_Title}Pronto para instalar"/>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="330" Height="14" Transparent="yes" NoPrefix="yes" Text="Clique em Instalar para começar."/>
+        <Control Id="Text" Type="Text" X="20" Y="58" Width="330" Height="110" NoPrefix="yes"
+                 Text="O instalador vai:&#13;&#10;&#13;&#10;•  copiar o agente para C:\Program Files\TechAudit;&#13;&#10;•  criar e iniciar o serviço Tech Audit Agent;&#13;&#10;•  registrar este servidor em [ENDPOINT].&#13;&#10;&#13;&#10;Depois da instalação o servidor aparece no portal em poucos minutos. Os caminhos auditados são escolhidos no portal."/>
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0"/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&lt; Voltar">
+          <Publish Event="NewDialog" Value="ServidorDlg" Condition="1"/>
+        </Control>
+        <Control Id="Install" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" ElevationShield="yes" Text="Instalar">
+          <Publish Event="EndDialog" Value="Return" Condition="1"/>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancelar">
+          <Publish Event="SpawnDialog" Value="CancelarDlg" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <!-- Já instalado: oferece remover. -->
+      <Dialog Id="ManutencaoDlg" Width="370" Height="270" Title="[ProductName]">
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="TA_Dialog"/>
+        <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="{\TA_Big}Tech Audit já instalado"/>
+        <Control Id="Description" Type="Text" X="135" Y="65" Width="220" Height="120" Transparent="yes" NoPrefix="yes"
+                 Text="O [ProductName] [ProductVersion] já está instalado neste computador.&#13;&#10;&#13;&#10;Clique em Remover para desinstalar o agente. Os dados em C:\ProgramData\TechAudit são mantidos. Para trocar o servidor ou o token, remova e instale de novo."/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Remove" Type="PushButton" X="236" Y="243" Width="56" Height="17" ElevationShield="yes" Text="&amp;Remover">
+          <Publish Event="Remove" Value="ALL" Condition="1"/>
+          <Publish Event="EndDialog" Value="Return" Condition="1"/>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="Cancelar">
+          <Publish Event="SpawnDialog" Value="CancelarDlg" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <!-- Progresso -->
+      <Dialog Id="ProgressDlg" Width="370" Height="270" Title="Instalação do [ProductName]" Modeless="yes">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="TA_Banner"/>
+        <Control Id="Title" Type="Text" X="15" Y="8" Width="340" Height="14" Transparent="yes" NoPrefix="yes" Text="{\TA_Title}Instalando o [ProductName]" HideCondition="REMOVE"/>
+        <Control Id="TitleRemove" Type="Text" X="15" Y="8" Width="340" Height="14" Transparent="yes" NoPrefix="yes" Hidden="yes" Text="{\TA_Title}Removendo o [ProductName]" ShowCondition="REMOVE"/>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="330" Height="14" Transparent="yes" NoPrefix="yes" Text="Aguarde alguns instantes."/>
+        <Control Id="ActionText" Type="Text" X="20" Y="70" Width="330" Height="12" NoPrefix="yes">
+          <Subscribe Event="ActionText" Attribute="Text"/>
+        </Control>
+        <Control Id="ProgressBar" Type="ProgressBar" X="20" Y="86" Width="330" Height="12" ProgressBlocks="yes" Text="Progresso">
+          <Subscribe Event="SetProgress" Attribute="Progress"/>
+        </Control>
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0"/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="&lt; Voltar"/>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Disabled="yes" Text="Avançar &gt;"/>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="Cancelar">
+          <Publish Event="SpawnDialog" Value="CancelarDlg" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <!-- Fim: sucesso, cancelado, erro -->
+      <Dialog Id="ConcluidoDlg" Width="370" Height="270" Title="Instalação do [ProductName]">
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="TA_Dialog"/>
+        <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="{\TA_Big}Instalação concluída"/>
+        <Control Id="Description" Type="Text" X="135" Y="65" Width="220" Height="130" Transparent="yes" NoPrefix="yes"
+                 Text="O serviço Tech Audit Agent está instalado e em execução.&#13;&#10;&#13;&#10;Em poucos minutos este servidor aparece no portal. Lá você escolhe as pastas que serão auditadas.&#13;&#10;&#13;&#10;Se ele não aparecer, veja o log em C:\ProgramData\TechAudit\agent.log." HideCondition="REMOVE"/>
+        <Control Id="DescriptionRemove" Type="Text" X="135" Y="65" Width="220" Height="130" Transparent="yes" NoPrefix="yes" Hidden="yes"
+                 Text="O Tech Audit Agent foi removido deste computador." ShowCondition="REMOVE"/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Finish" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="Concluir">
+          <Publish Event="EndDialog" Value="Return" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="CanceladoDlg" Width="370" Height="270" Title="Instalação do [ProductName]">
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="TA_Dialog"/>
+        <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="{\TA_Big}Instalação cancelada"/>
+        <Control Id="Description" Type="Text" X="135" Y="65" Width="220" Height="80" Transparent="yes" NoPrefix="yes" Text="Nada foi alterado neste computador. Você pode executar o instalador de novo quando quiser."/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Finish" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="Concluir">
+          <Publish Event="EndDialog" Value="Exit" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="FalhaDlg" Width="370" Height="270" Title="Instalação do [ProductName]">
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="TA_Dialog"/>
+        <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="{\TA_Big}A instalação falhou"/>
+        <Control Id="Description" Type="Text" X="135" Y="65" Width="220" Height="120" Transparent="yes" NoPrefix="yes"
+                 Text="Ocorreu um erro e nada foi alterado neste computador.&#13;&#10;&#13;&#10;Para ver o motivo, rode o instalador pelo Prompt de Comando como administrador:&#13;&#10;msiexec /i TechAuditAgent.msi /l*v instalacao.log&#13;&#10;e envie o arquivo instalacao.log ao suporte da Tech Master."/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Finish" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="Concluir">
+          <Publish Event="EndDialog" Value="Exit" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <!-- Avisos da tela do servidor -->
+      <Dialog Id="SemEnderecoDlg" Width="260" Height="85" Title="[ProductName]">
+        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="35" NoPrefix="yes" Text="Informe o endereço do servidor Tech Audit (aparece na tela Instalar agente do portal)."/>
+        <Control Id="OK" Type="PushButton" X="102" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="OK">
+          <Publish Event="EndDialog" Value="Return" Condition="1"/>
+        </Control>
+      </Dialog>
+      <Dialog Id="SemTokenDlg" Width="260" Height="85" Title="[ProductName]">
+        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="35" NoPrefix="yes" Text="Informe o token de instalação. Ele é gerado no portal, na página da empresa, em Tokens de instalação."/>
+        <Control Id="OK" Type="PushButton" X="102" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="OK">
+          <Publish Event="EndDialog" Value="Return" Condition="1"/>
+        </Control>
+      </Dialog>
+      <Dialog Id="TokenInvalidoDlg" Width="260" Height="85" Title="[ProductName]">
+        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="35" NoPrefix="yes" Text="O token de instalação começa com ta_enr_. Copie de novo do portal, sem espaços antes ou depois."/>
+        <Control Id="OK" Type="PushButton" X="102" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="OK">
+          <Publish Event="EndDialog" Value="Return" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="CancelarDlg" Width="260" Height="85" Title="[ProductName]">
+        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="30" NoPrefix="yes" Text="Deseja cancelar a instalação do [ProductName]?"/>
+        <Control Id="Yes" Type="PushButton" X="72" Y="57" Width="56" Height="17" Text="&amp;Sim">
+          <Publish Event="EndDialog" Value="Exit" Condition="1"/>
+        </Control>
+        <Control Id="No" Type="PushButton" X="132" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="&amp;Não">
+          <Publish Event="EndDialog" Value="Return" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <!-- Mensagens do próprio Windows Installer (ex.: serviço não iniciou). -->
+      <Dialog Id="ErrorDlg" Width="270" Height="105" Title="[ProductName]" ErrorDialog="yes">
+        <Control Id="ErrorText" Type="Text" X="15" Y="15" Width="240" Height="60" TabSkip="no" NoPrefix="yes" Text="Erro"/>
+        <Control Id="Y" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="Sim">
+          <Publish Event="EndDialog" Value="ErrorYes" Condition="1"/>
+        </Control>
+        <Control Id="A" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="Cancelar">
+          <Publish Event="EndDialog" Value="ErrorAbort" Condition="1"/>
+        </Control>
+        <Control Id="C" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="Cancelar">
+          <Publish Event="EndDialog" Value="ErrorCancel" Condition="1"/>
+        </Control>
+        <Control Id="I" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="Ignorar">
+          <Publish Event="EndDialog" Value="ErrorIgnore" Condition="1"/>
+        </Control>
+        <Control Id="N" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="Não">
+          <Publish Event="EndDialog" Value="ErrorNo" Condition="1"/>
+        </Control>
+        <Control Id="O" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="OK">
+          <Publish Event="EndDialog" Value="ErrorOk" Condition="1"/>
+        </Control>
+        <Control Id="R" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="Repetir">
+          <Publish Event="EndDialog" Value="ErrorRetry" Condition="1"/>
+        </Control>
+      </Dialog>
+
+      <InstallUISequence>
+        <Show Dialog="BemVindoDlg" Sequence="1297" Condition="NOT Installed"/>
+        <Show Dialog="ManutencaoDlg" Sequence="1298" Condition="Installed AND NOT RESUME AND NOT Preselected"/>
+        <Show Dialog="ProgressDlg" Before="ExecuteAction"/>
+        <Show Dialog="ConcluidoDlg" OnExit="success"/>
+        <Show Dialog="CanceladoDlg" OnExit="cancel"/>
+        <Show Dialog="FalhaDlg" OnExit="error"/>
+      </InstallUISequence>
+    </UI>
+  </Fragment>
 </Wix>

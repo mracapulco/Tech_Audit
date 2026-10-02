@@ -5,6 +5,7 @@ import { ConfigController } from './auditcfg/config.controller.js';
 import { AdminGuard } from './admin/admin.guard.js';
 import { AdminTenantsController } from './admin/admin-tenants.controller.js';
 import { AdminUsersController } from './admin/admin-users.controller.js';
+import { InstallerController } from './agent-installer/installer.controller.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { PortalAuthGuard } from './auth/portal-auth.guard.js';
@@ -37,6 +38,7 @@ import { ReportsService } from './reports/reports.service.js';
     ConfigController,
     AgentConfigController,
     ReportsController,
+    InstallerController,
   ],
   providers: [
     PrismaService,

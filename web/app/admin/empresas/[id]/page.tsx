@@ -214,7 +214,10 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
 
         <section className="section">
           <h2>Tokens de instalação</h2>
-          <p className="muted small">O token vai no agent.json do servidor do cliente. Cada instalação gasta um uso; o token só funciona com licença vigente.</p>
+          <p className="muted small">
+            O token é digitado no instalador do agente (baixe em <Link href="/agente">Instalar agente</Link>). Cada instalação gasta um uso; o token
+            só funciona com licença vigente.
+          </p>
           {t.tokens.length > 0 && (
             <div className="table-wrap">
               <table>
