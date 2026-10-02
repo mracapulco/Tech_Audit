@@ -99,6 +99,9 @@ Limites conhecidos (heurísticas, validar em servidores reais):
   pelo nome novo: sai como `moved` sem destino.
 - Mover para outro volume é cópia + exclusão: aparece como `created` no
   destino e `deleted` na origem.
+- Criar uma pasta vazia não gera evento no Windows (no teste com Windows 11
+  não houve 4663 na pasta-mãe nem na nova). A pasta aparece quando algo é
+  gravado, copiado ou movido para dentro dela, ou quando é renomeada.
 
 ## Formato enviado
 
