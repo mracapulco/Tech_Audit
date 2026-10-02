@@ -82,3 +82,25 @@ export function screenQuery(f: ScreenFilters, extra: Record<string, string> = {}
   for (const [k, v] of Object.entries({ ...f, ...extra })) if (v) p.set(k, v);
   return p.toString();
 }
+
+// Atalhos de período usados no painel, nos relatórios e na pesquisa.
+export const PERIOD_PRESETS: { key: string; label: string; hours: number }[] = [
+  { key: '24h', label: 'Últimas 24 horas', hours: 24 },
+  { key: '7d', label: '7 dias', hours: 7 * 24 },
+  { key: '30d', label: '30 dias', hours: 30 * 24 },
+  { key: '90d', label: '90 dias', hours: 90 * 24 },
+];
+
+// Período de um atalho, nos campos "de"/"até" da tela (Brasília).
+export function presetRange(key: string, now = new Date()): { de: string; ate: string } | null {
+  const p = PERIOD_PRESETS.find((x) => x.key === key);
+  if (!p) return null;
+  return { de: isoToLocal(new Date(now.getTime() - p.hours * 3600_000)), ate: isoToLocal(now) };
+}
+
+// Opções de ação do filtro, incluindo a escolhida quando é um tipo novo do agente.
+export function actionOptions(selected: string): [string, string][] {
+  const list = Object.entries(ACTION_LABELS);
+  if (selected && !ACTION_LABELS[selected]) list.push([selected, selected]);
+  return list;
+}
