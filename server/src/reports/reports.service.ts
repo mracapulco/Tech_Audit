@@ -29,19 +29,34 @@ export const REPORT_TITLES: Record<ReportType, string> = {
   eventos: 'Eventos detalhados',
 };
 
-// Agente sem enviar lotes há mais que isso aparece em alerta no painel. O
-// agente só fala com o servidor quando há eventos, então "atrasado" pode ser
-// só um servidor sem uso; "parado" (mais de um dia) merece verificação.
+// Situação do agente. O agente 0.2+ manda um sinal de vida (heartbeat) a cada
+// minuto: alguns minutos sem ele já indicam problema. Agentes 0.1 só falam com
+// o servidor quando há eventos, então para eles vale o último lote, com
+// limites bem maiores.
+export const HEARTBEAT_LATE_MS = 5 * 60_000;
+export const HEARTBEAT_STALE_MS = 3600_000;
 export const AGENT_LATE_MS = 3600_000;
 export const AGENT_STALE_MS = 24 * 3600_000;
 
 export type AgentHealth = 'ok' | 'late' | 'stale' | 'never' | 'disabled';
 
-export function agentHealth(a: { lastSeenAt: Date | null; disabledAt: Date | null }, now = new Date()): AgentHealth {
+export function agentHealth(
+  a: { lastSeenAt: Date | null; lastHeartbeatAt?: Date | null; disabledAt: Date | null },
+  now = new Date(),
+): AgentHealth {
   if (a.disabledAt) return 'disabled';
-  if (!a.lastSeenAt) return 'never';
-  const age = now.getTime() - a.lastSeenAt.getTime();
-  return age <= AGENT_LATE_MS ? 'ok' : age <= AGENT_STALE_MS ? 'late' : 'stale';
+  const [last, late, stale] = a.lastHeartbeatAt
+    ? [a.lastHeartbeatAt, HEARTBEAT_LATE_MS, HEARTBEAT_STALE_MS]
+    : [a.lastSeenAt, AGENT_LATE_MS, AGENT_STALE_MS];
+  if (!last) return 'never';
+  const age = now.getTime() - last.getTime();
+  return age <= late ? 'ok' : age <= stale ? 'late' : 'stale';
+}
+
+// Último contato do agente: sinal de vida ou lote, o mais recente.
+export function lastContact(a: { lastSeenAt: Date | null; lastHeartbeatAt?: Date | null }): Date | null {
+  const t = Math.max(a.lastSeenAt?.getTime() ?? 0, a.lastHeartbeatAt?.getTime() ?? 0);
+  return t ? new Date(t) : null;
 }
 
 export interface ReportContext {
@@ -107,7 +122,9 @@ export class ReportsService {
         server: r.server,
         user: userText(r),
         path: r.path,
-        actions: r.actions.map(actionLabel).join(', '),
+        new_path: r.new_path,
+        actions: r.action ? actionLabel(r.action) : r.actions.map(actionLabel).join(', '),
+        count: r.count,
         result: r.success ? 'Sucesso' : 'Falha',
         source_ip: r.source_ip,
         process_name: r.process_name,
@@ -120,7 +137,9 @@ export class ReportsService {
           col('server', 'Servidor'),
           col('user', 'Usuário'),
           col('path', 'Caminho', 'path'),
-          col('actions', 'Ações'),
+          col('actions', 'Ação'),
+          col('new_path', 'Novo caminho', 'path'),
+          col('count', 'Quantidade', 'int'),
           col('result', 'Resultado'),
           col('source_ip', 'IP de origem'),
           col('process_name', 'Processo', 'path'),
@@ -245,7 +264,10 @@ export class ReportsService {
         hostname: a.hostname,
         os: a.os,
         agent_version: a.agentVersion,
-        last_seen_at: a.lastSeenAt,
+        last_seen_at: lastContact(a),
+        last_heartbeat_at: a.lastHeartbeatAt,
+        heartbeat: a.lastHeartbeatAt !== null,
+        buffer_events: a.bufferEvents,
         health: agentHealth(a, now),
         events: eventsByAgent.get(a.id) ?? 0,
       })),

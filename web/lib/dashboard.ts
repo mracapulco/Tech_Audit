@@ -3,7 +3,7 @@
 
 export const HEALTH: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }> = {
   ok: { label: 'Enviando', tone: 'ok' },
-  late: { label: 'Sem envio recente', tone: 'warn' },
+  late: { label: 'Sem sinal recente', tone: 'warn' },
   stale: { label: 'Parado', tone: 'bad' },
   never: { label: 'Nunca enviou', tone: 'bad' },
   disabled: { label: 'Desativado', tone: 'neutral' },

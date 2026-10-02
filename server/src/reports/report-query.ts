@@ -1,7 +1,7 @@
 // SQL e regras dos relatórios e do painel, sem acesso a banco. Todos usam os
 // mesmos filtros da pesquisa de eventos (eventWhere), então o escopo por
 // tenant é sempre aplicado.
-import { eventWhere, paramList, type EventFilters } from '../events/event-query.js';
+import { EFFECTIVE_ACTIONS_SQL as ACTS, eventWhere, paramList, type EventFilters } from '../events/event-query.js';
 import { BRT_OFFSET_MS } from './table.js';
 
 export type Bucket = 'hour' | 'day' | 'month';
@@ -66,7 +66,7 @@ SELECT count(*)::float8 AS total,
        count(*) FILTER (WHERE NOT e.success)::float8 AS failures,
        count(DISTINCT e.identity_id)::float8 AS users,
        count(DISTINCT e.path_id)::float8 AS paths,
-       count(*) FILTER (WHERE e.actions && ${p(sensitive)}::text[])::float8 AS sensitive
+       count(*) FILTER (WHERE ${ACTS} && ${p(sensitive)}::text[])::float8 AS sensitive
 FROM events.file_events e
 WHERE ${where.join(' AND ')}`,
   };
@@ -79,7 +79,7 @@ export function timelineQuery(f: EventFilters, b: Bucket, sensitive: string[]): 
     values,
     text: `
 SELECT ${bucketSql(b)} AS k, count(*)::float8 AS total,
-       count(*) FILTER (WHERE e.actions && ${p(sensitive)}::text[])::float8 AS sensitive,
+       count(*) FILTER (WHERE ${ACTS} && ${p(sensitive)}::text[])::float8 AS sensitive,
        count(*) FILTER (WHERE NOT e.success)::float8 AS failures
 FROM events.file_events e
 WHERE ${where.join(' AND ')}
@@ -94,7 +94,7 @@ export function actionsQuery(f: EventFilters): Query {
     values,
     text: `
 SELECT a AS action, count(*)::float8 AS total
-FROM events.file_events e, unnest(e.actions) a
+FROM events.file_events e, unnest(${ACTS}) a
 WHERE ${where.join(' AND ')}
 GROUP BY a ORDER BY total DESC, a`,
   };
@@ -127,7 +127,7 @@ function grouped(
     values,
     text: `
 WITH base AS (
-  SELECT ${o.base}, e.actions, e.success, e.identity_id AS who, e.path_id AS what, e.time
+  SELECT ${o.base}, ${ACTS} AS actions, e.success, e.identity_id AS who, e.path_id AS what, e.time
   FROM events.file_events e ${o.joins ?? ''}
   WHERE ${where.join(' AND ')}
 ),

@@ -54,7 +54,7 @@ button.link { background: none; border: none; color: var(--accent); padding: 0; 
 .page { padding: 24px; max-width: 1400px; margin: 0 auto; }
 .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; align-items: end; }
 .filters .wide { grid-column: span 2; }
-.filters .buttons { display: flex; gap: 8px; white-space: nowrap; }
+.filters .buttons { display: flex; gap: 8px; flex-wrap: wrap; grid-column: span 2; }
 .empty { text-align: center; color: var(--muted); }
 .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
@@ -69,7 +69,7 @@ th { background: var(--bg); font-weight: 600; white-space: nowrap; }
 @media (max-width: 640px) {
   .topbar { padding: 12px 16px; flex-wrap: wrap; }
   .page { padding: 16px; }
-  .filters .wide { grid-column: auto; }
+  .filters .wide, .filters .buttons { grid-column: auto; }
 }
 
 /* Navegação e administração */
@@ -182,3 +182,4 @@ details.edit summary, .add-path summary { cursor: pointer; }
 details.edit summary { list-style: none; display: inline-block; border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; }
 details.edit[open] { flex-basis: 100%; }
 .add-path summary { color: var(--accent); font-weight: 600; }
+.new-path { display: block; color: var(--muted); margin-top: 2px; }

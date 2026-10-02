@@ -5,7 +5,7 @@ import { TimelineChart, type TimelinePoint } from '@/components/timeline-chart';
 import { TopBar } from '@/components/top-bar';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
 import { ago, formatInt, health, userText } from '@/lib/dashboard';
-import { actionLabel, formatDateTime, localToIso, PERIOD_PRESETS, presetRange, screenQuery, type SearchParams } from '@/lib/filters';
+import { actionLabel, eventActionText, formatDateTime, localToIso, PERIOD_PRESETS, presetRange, screenQuery, type SearchParams } from '@/lib/filters';
 import { formatBytes, formatLastDay, licenseStatus } from '@/lib/format';
 
 export const metadata: Metadata = { title: 'Painel · Tech Audit' };
@@ -36,10 +36,25 @@ interface Dashboard {
     user_domain: string | null;
     user_name: string | null;
     actions: string[];
+    action: string | null;
+    new_path: string | null;
+    item_type: string | null;
+    count: number;
     success: boolean;
   }[];
   sensitive_actions: string[];
-  agents: { id: string; tenant_id: string; tenant_name: string; hostname: string; agent_version: string | null; last_seen_at: string | null; health: string; events: number }[];
+  agents: {
+    id: string;
+    tenant_id: string;
+    tenant_name: string;
+    hostname: string;
+    agent_version: string | null;
+    last_seen_at: string | null;
+    heartbeat: boolean;
+    buffer_events: number | null;
+    health: string;
+    events: number;
+  }[];
   companies: Company[];
 }
 
@@ -209,8 +224,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                           {showTenant && <td>{e.tenant_name}</td>}
                           <td>{e.server}</td>
                           <td className="nowrap">{userText(e)}</td>
-                          <td>{e.actions.filter((a) => d.sensitive_actions.includes(a)).map(actionLabel).join(', ')}</td>
-                          <td className="path">{e.path ?? '-'}</td>
+                          <td>{eventActionText(e)}</td>
+                          <td className="path">
+                            {e.path ?? '-'}
+                            {e.new_path && <span className="new-path">→ {e.new_path}</span>}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -265,8 +283,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <section className="section">
               <h2>{showTenant ? 'Agentes que precisam de atenção' : 'Servidores monitorados'}</h2>
               <p className="muted small">
-                O agente envia dados sempre que há eventos novos. &quot;Sem envio recente&quot; (mais de 1 hora) pode ser só um servidor sem uso;
-                &quot;Parado&quot; (mais de 1 dia) merece verificação.
+                O agente atual manda um sinal de vida a cada minuto: &quot;Sem sinal recente&quot; aparece depois de 5 minutos sem contato e
+                &quot;Parado&quot; depois de 1 hora. Agentes antigos (sem sinal de vida) só falam com o servidor quando há eventos; para eles os
+                limites são 1 hora e 1 dia.
               </p>
               {agents.length === 0 ? (
                 <p className="card empty">{showTenant ? 'Todos os agentes estão enviando dados.' : 'Nenhum agente instalado ainda.'}</p>
@@ -278,7 +297,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         <th>Servidor</th>
                         {showTenant && <th>Empresa</th>}
                         <th>Situação</th>
-                        <th>Último envio</th>
+                        <th>Último contato</th>
+                        <th>Aguardando envio</th>
                         <th>Versão do agente</th>
                         <th>Eventos no período</th>
                       </tr>
@@ -295,6 +315,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                             </td>
                             <td className="nowrap" title={a.last_seen_at ? formatDateTime(a.last_seen_at) : undefined}>
                               {ago(a.last_seen_at)}
+                            </td>
+                            <td title="Eventos guardados no servidor do cliente que ainda não chegaram aqui">
+                              {a.heartbeat ? formatInt(a.buffer_events ?? 0) : '-'}
                             </td>
                             <td>{a.agent_version ?? '-'}</td>
                             <td>{formatInt(a.events)}</td>

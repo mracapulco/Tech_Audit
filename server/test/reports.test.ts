@@ -62,14 +62,23 @@ describe('portal: painel e relatórios', { skip }, () => {
     return agent.id;
   }
 
-  const ev = (recordId: number, hours: number, user: string, path: string, actions: string[], outcome = 'success') => ({
+  // Evento do agente 0.2+, com ação lógica.
+  const ev = (recordId: number, hours: number, user: string, path: string, action: string, extra: Record<string, unknown> = {}) => ({
     ...sampleEvent,
     record_id: recordId,
     time: new Date(T0 + hours * 3600_000).toISOString(),
     user: { name: user, domain: 'CORP', sid: `S-1-5-21-7-${user}` },
     path,
+    action,
+    actions: ['write'],
+    outcome: 'success',
+    ...extra,
+  });
+  // Evento de agente 0.1: só os direitos brutos.
+  const oldEv = (recordId: number, hours: number, user: string, path: string, actions: string[]) => ({
+    ...ev(recordId, hours, user, path, ''),
+    action: undefined,
     actions,
-    outcome,
   });
 
   before(async () => {
@@ -101,18 +110,20 @@ describe('portal: painel e relatórios', { skip }, () => {
       tenantA,
       'FS-A',
       [
-        ev(1, 0, 'joao.silva', fin + 'orcamento.xlsx', ['write']),
-        ev(2, 1, 'joao.silva', fin + 'orcamento.xlsx', ['read', 'write']),
-        ev(3, 2, 'maria.souza', fin + 'balanco.docx', ['delete']),
-        ev(4, 25, 'maria.souza', 'D:\\Shares\\RH\\folha.pdf', ['permission_change']),
-        ev(5, 26, 'joao.silva', 'D:\\Shares\\RH\\folha.pdf', ['read'], 'failure'),
-        // Tipo novo enviado pelo agente: aparece sem mudar o servidor.
-        ev(6, 49, 'ana.lima', fin + 'velho.txt', ['moved_to_recycle_bin']),
+        ev(1, 0, 'joao.silva', fin + 'orcamento.xlsx', 'created'),
+        ev(2, 1, 'joao.silva', fin + 'orcamento.xlsx', 'modified'),
+        ev(3, 2, 'maria.souza', fin + 'balanco.docx', 'deleted'),
+        ev(4, 25, 'maria.souza', 'D:\\Shares\\RH\\folha.pdf', 'permission_changed', { count: 12 }),
+        ev(5, 26, 'joao.silva', 'D:\\Shares\\RH\\folha.pdf', 'read', { outcome: 'failure' }),
+        ev(6, 49, 'ana.lima', fin + 'velho.txt', 'recycled'),
+        ev(7, 49.5, 'ana.lima', fin + 'a.txt', 'renamed', { new_path: fin + 'b.txt' }),
+        // Agente antigo (0.1): conta pelos direitos brutos.
+        oldEv(8, 50, 'carlos.pereira', fin + 'antigo.txt', ['delete']),
       ],
       new Date(),
     );
     await seed(tenantA, 'FS-A2', [], null);
-    await seed(tenantB, 'FS-B', [ev(1, 0, 'joao.silva', fin + 'segredo-de-B.xlsx', ['delete'])], new Date(Date.now() - 3 * 24 * 3600_000));
+    await seed(tenantB, 'FS-B', [ev(1, 0, 'joao.silva', fin + 'segredo-de-B.xlsx', 'deleted')], new Date(Date.now() - 3 * 24 * 3600_000));
   });
 
   after(async () => {
@@ -122,46 +133,61 @@ describe('portal: painel e relatórios', { skip }, () => {
   it('painel do cliente: totais, gráfico por dia, ações, destaques e agentes', async () => {
     const d = await json('/dashboard', await tokenFor(auditorA));
     assert.equal(d.tenant.id, tenantA);
-    assert.deepEqual(d.totals, { total: 6, failures: 1, users: 3, paths: 4, sensitive: 2 });
+    assert.deepEqual(d.totals, { total: 8, failures: 1, users: 4, paths: 6, sensitive: 4 });
     assert.equal(d.period.bucket, 'day');
     assert.deepEqual(
       d.timeline.map((t: { key: string; total: number; sensitive: number }) => [t.key, t.total, t.sensitive]),
       [
         ['2026-07-06', 3, 1],
         ['2026-07-07', 2, 1],
-        ['2026-07-08', 1, 0],
+        ['2026-07-08', 3, 2],
       ],
     );
+    // Uma ação por evento: a lógica no agente 0.2+, os direitos no 0.1.
     assert.deepEqual(
-      d.actions.map((a: { action: string; total: number; label: string }) => [a.action, a.total, a.label]),
+      d.actions.map((a: { action: string; total: number; label: string }) => [a.action, a.label]),
       [
-        ['read', 2, 'Leitura'],
-        ['write', 2, 'Escrita'],
-        ['delete', 1, 'Exclusão'],
-        ['moved_to_recycle_bin', 1, 'moved_to_recycle_bin'],
-        ['permission_change', 1, 'Alteração de permissão'],
+        ['created', 'Criação'],
+        ['delete', 'Exclusão (direito)'],
+        ['deleted', 'Exclusão'],
+        ['modified', 'Alteração'],
+        ['permission_changed', 'Alteração de permissão'],
+        ['read', 'Leitura'],
+        ['recycled', 'Enviado para a Lixeira'],
+        ['renamed', 'Renomeação'],
       ],
     );
-    assert.deepEqual(
-      d.top_users.map((u: { user_name: string; total: number }) => [u.user_name, u.total]),
-      [
-        ['joao.silva', 3],
-        ['maria.souza', 2],
-        ['ana.lima', 1],
-      ],
-    );
-    assert.deepEqual(d.top_folders[0], { tenant_id: tenantA, tenant_name: d.tenant.name, server: 'FS-A', folder: 'D:\\Shares\\Financeiro', total: 4, users: 3 });
-    assert.deepEqual(d.recent_sensitive.map((e: { record_id: string }) => e.record_id), ['4', '3']);
+    assert.ok(d.actions.every((a: { total: number }) => a.total === 1));
+    const users = d.top_users.map((u: { user_name: string; total: number }) => `${u.user_name}:${u.total}`);
+    assert.equal(users[0], 'joao.silva:3');
+    assert.deepEqual(users.slice(1).sort(), ['ana.lima:2', 'carlos.pereira:1', 'maria.souza:2']);
+    assert.deepEqual(d.top_folders[0], { tenant_id: tenantA, tenant_name: d.tenant.name, server: 'FS-A', folder: 'D:\\Shares\\Financeiro', total: 6, users: 4 });
+    assert.deepEqual(d.recent_sensitive.map((e: { record_id: string }) => e.record_id), ['8', '6', '4', '3']);
     assert.deepEqual(
       d.agents.map((a: { hostname: string; health: string; events: number }) => [a.hostname, a.health, a.events]),
       [
-        ['FS-A', 'ok', 6],
+        ['FS-A', 'ok', 8],
         ['FS-A2', 'never', 0],
       ],
     );
     assert.equal(d.companies.length, 1);
     assert.deepEqual(d.companies[0].license, { ...d.companies[0].license, status: 'active', max_agents: 3, active_agents: 2 });
     assert.equal(d.companies[0].agents_attention, 1);
+  });
+
+  it('situação do agente pelo sinal de vida, quando o agente manda', async () => {
+    const id = await seed(tenantA, 'FS-HB', [], new Date(Date.now() - 3 * 24 * 3600_000));
+    await prisma.agent.update({ where: { id }, data: { lastHeartbeatAt: new Date(), bufferEvents: 42 } });
+    const d = await json('/dashboard', await tokenFor(auditorA));
+    const a = d.agents.find((x: { id: string }) => x.id === id);
+    assert.equal(a.health, 'ok');
+    assert.equal(a.heartbeat, true);
+    assert.equal(a.buffer_events, 42);
+    assert.ok(Date.now() - Date.parse(a.last_seen_at) < 60_000, 'último contato vem do sinal de vida');
+    await prisma.agent.update({ where: { id }, data: { lastHeartbeatAt: new Date(Date.now() - 20 * 60_000) } });
+    const late = (await json('/dashboard', await tokenFor(auditorA))).agents.find((x: { id: string }) => x.id === id);
+    assert.equal(late.health, 'late');
+    await prisma.agent.update({ where: { id }, data: { disabledAt: new Date() } });
   });
 
   it('cliente não vê o painel de outra empresa; Tech Master vê todas', async () => {
@@ -184,12 +210,21 @@ describe('portal: painel e relatórios', { skip }, () => {
     assert.ok(!t.columns.some((c: { key: string }) => c.key === 'tenant_name'), 'cliente não precisa da coluna Empresa');
     assert.deepEqual(
       t.columns.filter((c: { key: string }) => c.key.startsWith('action:')).map((c: { label: string }) => c.label),
-      ['Leitura', 'Escrita', 'Exclusão', 'Alteração de permissão', 'moved_to_recycle_bin'],
+      ['Criação', 'Alteração', 'Leitura', 'Exclusão', 'Enviado para a Lixeira', 'Renomeação', 'Alteração de permissão', 'Exclusão (direito)'],
     );
     const joao = t.rows[0];
     assert.deepEqual(
-      { user: joao.user, total: joao.total, failures: joao.failures, paths: joao.paths, read: joao['action:read'], write: joao['action:write'], del: joao['action:delete'] },
-      { user: 'CORP\\joao.silva', total: 3, failures: 1, paths: 2, read: 2, write: 2, del: 0 },
+      {
+        user: joao.user,
+        total: joao.total,
+        failures: joao.failures,
+        paths: joao.paths,
+        created: joao['action:created'],
+        modified: joao['action:modified'],
+        read: joao['action:read'],
+        del: joao['action:deleted'],
+      },
+      { user: 'CORP\\joao.silva', total: 3, failures: 1, paths: 2, created: 1, modified: 1, read: 1, del: 0 },
     );
     assert.equal(joao.first_time, '2026-07-06T12:00:00Z');
     assert.match(t.info[0], /^Empresa: Relatórios A/);
@@ -202,7 +237,7 @@ describe('portal: painel e relatórios', { skip }, () => {
     assert.deepEqual(
       pastas.rows.map((r: { folder: string; total: number; users: number }) => [r.folder, r.total, r.users]),
       [
-        ['D:\\Shares\\Financeiro', 4, 3],
+        ['D:\\Shares\\Financeiro', 6, 4],
         ['D:\\Shares\\RH', 2, 2],
       ],
     );
@@ -216,7 +251,7 @@ describe('portal: painel e relatórios', { skip }, () => {
       [
         ['06/07/2026', 3, 2],
         ['07/07/2026', 2, 2],
-        ['08/07/2026', 1, 1],
+        ['08/07/2026', 3, 2],
       ],
     );
     const porHora = await json('/reports/periodo', token, { from: '2026-07-06T12:00:00Z', to: '2026-07-06T15:00:00Z' });
@@ -225,8 +260,10 @@ describe('portal: painel e relatórios', { skip }, () => {
       ['06/07 10h', 1],
       ['06/07 11h', 1],
     ]);
-    const exclusoes = await json('/reports/usuarios', token, { action: 'delete' });
+    const exclusoes = await json('/reports/usuarios', token, { action: 'deleted' });
     assert.deepEqual(exclusoes.rows.map((r: { user: string }) => r.user), ['CORP\\maria.souza']);
+    const antigos = await json('/reports/usuarios', token, { action: 'delete' });
+    assert.deepEqual(antigos.rows.map((r: { user: string }) => r.user), ['CORP\\carlos.pereira']);
   });
 
   it('Tech Master vê a coluna Empresa e os dados de todas', async () => {
@@ -234,6 +271,19 @@ describe('portal: painel e relatórios', { skip }, () => {
     assert.equal(t.columns[1].key, 'tenant_name');
     assert.ok(t.rows.some((r: { path: string }) => r.path.includes('segredo-de-B')));
     assert.equal(t.info[0], 'Empresa: todas');
+  });
+
+  it('eventos detalhados trazem ação em português, novo caminho e quantidade', async () => {
+    const t = await json('/reports/eventos', await tokenFor(auditorA));
+    const byId = (p: string) => t.rows.find((r: { path: string }) => r.path.endsWith(p));
+    assert.deepEqual(
+      [byId('a.txt').actions, byId('a.txt').new_path],
+      ['Renomeação', 'D:\\Shares\\Financeiro\\b.txt'],
+    );
+    const perm = t.rows.find((r: { actions: string }) => r.actions === 'Alteração de permissão');
+    assert.equal(perm.count, 12);
+    assert.equal(byId('antigo.txt').actions, 'Exclusão (direito)');
+    assert.ok(t.columns.some((c: { key: string; label: string }) => c.key === 'new_path' && c.label === 'Novo caminho'));
   });
 
   it('exporta Excel e PDF só com dados do próprio cliente', async () => {
