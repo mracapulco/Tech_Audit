@@ -79,7 +79,7 @@ Princípios:
 ### 4.1 Responsabilidades
 
 1. **Eventos de arquivo** (contínuo): ler o log de Segurança do Windows em tempo real.
-2. **Inventário** (periódico, ex.: a cada 6 h e sob demanda): compartilhamentos, permissões de compartilhamento e NTFS das pastas raiz e até N níveis, volumes e espaço, tamanho por pasta.
+2. **Inventário** (periódico, ex.: a cada 6 h e sob demanda): compartilhamentos, permissões de compartilhamento e NTFS das pastas raiz e até N níveis, volumes e espaço, tamanho por pasta e **tamanho total de cada caminho auditado** (usado no licenciamento, seção 9.2).
 3. **Aplicação e verificação da auditoria**: aplicar a política de auditoria e as SACLs nos caminhos definidos pelo portal, registrar cada alteração e reportar ao servidor quando a configuração estiver ausente ou divergente (o portal exibe alerta "auditoria desativada em D:\Dados"). Detalhes na seção 4.6.
 4. **Heartbeat** a cada 60 s com versão, uso de CPU/memória do agente, tamanho do buffer e atraso de leitura.
 5. **Autoatualização** a partir de pacotes assinados publicados pelo servidor.
@@ -308,7 +308,7 @@ Cada tenant tem uma ou mais licenças (`licenses`), criadas apenas por `msp_admi
 |---|---|
 | Plano | Essencial / Profissional / Enterprise |
 | Limite de servidores (agentes ativos) | 3 |
-| Volume de dados contratado (armazenamento ocupado pelo tenant, após compressão) | 50 GB |
+| Volume de dados contratado (soma do tamanho dos diretórios auditados nos servidores do cliente) | 2 TB |
 | Retenção de dados | 365 dias |
 | Módulos | relatórios agendados, alertas, inventário de ACL |
 | Validade | 2026-10-01 a 2027-09-30 |
@@ -318,9 +318,12 @@ Regras:
 
 - **Registro de agente**: `POST /v1/enroll` só é aceito se o tenant tiver licença vigente e vaga disponível. Cada agente registrado ocupa uma vaga (`license_activations`, com `agent_id`, hostname, `machine_id` e data). Desativar um agente no portal libera a vaga.
 - **Identificação da máquina**: o agente envia um `machine_id` estável (ex.: `MachineGuid` do Windows combinado com o UUID do SMBIOS, em hash). Um mesmo agente reinstalado na mesma máquina reaproveita a vaga; um certificado copiado para outra máquina é detectado e bloqueado.
-- **Volume de dados**: o servidor calcula diariamente o espaço ocupado por tenant (tamanho dos chunks do TimescaleDB por `tenant_id` mais relatórios no MinIO). Aos 80% o portal e o e-mail avisam o cliente e a Tech Master; aos 100% gera alerta de excedente para upgrade ou cobrança adicional. A ingestão **não é bloqueada** por volume, para não abrir buracos na trilha de auditoria; o bloqueio acontece só por vencimento da licença.
+- **Volume de dados**: é a **soma do tamanho dos diretórios auditados** em todos os servidores do tenant (arquivos e subpastas, recursivamente). O agente mede o tamanho de cada caminho auditado no ciclo de inventário (varredura com `FindFirstFileEx` em modo `FIND_FIRST_EX_LARGE_FETCH`, em baixa prioridade de I/O; nos ciclos seguintes pode usar o USN Journal do NTFS para atualizar sem varrer tudo de novo) e envia o total ao servidor. Caminhos aninhados não são contados duas vezes.
+  - Ao **cadastrar um caminho** no portal, o tamanho estimado é mostrado e o portal **impede salvar** se o total passar do contratado (o `msp_admin` pode liberar manualmente).
+  - Se os diretórios já auditados **crescerem** além do limite, a auditoria **continua** (para não abrir buracos na trilha de auditoria): aos 80% o portal e o e-mail avisam o cliente e a Tech Master, aos 100% gera alerta de excedente para upgrade ou cobrança adicional, e novos caminhos ficam bloqueados até ajustar a licença.
+  - O bloqueio da ingestão acontece só por vencimento da licença.
 - **Vencimento**: a tolerância é de **1 dia**. O portal avisa com antecedência (30, 7 e 1 dia antes) por banner e e-mail. Durante a tolerância, tudo funciona e o portal exibe aviso. Depois dela, o servidor deixa de aceitar eventos (o agente continua armazenando em buffer, dentro do limite) e o portal fica somente leitura. **Os dados não são apagados** no vencimento; a exclusão segue o contrato e a LGPD. Renovar a licença retoma a ingestão, e o agente envia o que estava no buffer.
-- **Uso medido**: o servidor registra diariamente agentes ativos, volume armazenado e eventos recebidos por tenant (`license_usage`), base para faturamento e para detectar uso acima do contratado.
+- **Uso medido**: o servidor registra diariamente agentes ativos, volume dos diretórios auditados, eventos recebidos e espaço ocupado no banco por tenant (`license_usage`), base para faturamento e para detectar uso acima do contratado.
 
 ### 9.3 Distribuição do instalador
 
@@ -385,7 +388,7 @@ Ferramentas: pnpm workspaces + Turborepo para a parte TypeScript; `go` modules n
 1. **Caminhos auditados**: definidos pelo portal web; cliente e Tech Master podem adicionar e remover caminhos a qualquer momento. Auditoria de leitura é opção por caminho, desligada por padrão (seção 4.6).
 2. **Configuração da auditoria no cliente**: o agente aplica a política e as SACLs sozinho, com aviso antes, alerta depois e log imutável de todas as alterações (seção 4.6).
 3. **Tech_Hub**: o Tech Audit é um produto independente, sem login ou tenants compartilhados (seção 6.2).
-4. **Licenciamento**: controle de distribuição e licença por tenant, aplicados no servidor, com limite por **número de servidores** e **volume de dados** e **1 dia** de tolerância após o vencimento (seção 9).
+4. **Licenciamento**: controle de distribuição e licença por tenant, aplicados no servidor, com limite por **número de servidores** e **volume de dados** (soma do tamanho dos diretórios auditados) e **1 dia** de tolerância após o vencimento (seção 9).
 
 ### Em aberto
 
