@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { logout } from '@/app/actions';
+import { Logo } from '@/components/logo';
 import type { CurrentUser } from '@/lib/api';
 
 export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' | 'eventos' | 'relatorios' | 'configuracao' | 'empresas' | 'usuarios' }) {
@@ -11,7 +12,9 @@ export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' |
   );
   return (
     <header className="topbar">
-      <strong>Tech Audit</strong>
+      <Link href="/painel" className="brand-link" aria-label="Tech Audit, ir para o painel">
+        <Logo size={24} />
+      </Link>
       <nav className="navlinks">
         {link('painel', '/painel', 'Painel')}
         {link('eventos', '/eventos', 'Eventos')}
