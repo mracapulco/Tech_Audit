@@ -20,24 +20,45 @@ export interface ReportTable {
   truncated: boolean;
 }
 
-// Rótulos das ações gravadas pelo agente. Tipos novos aparecem com o próprio
-// nome até ganharem um rótulo aqui (e em web/lib/filters.ts).
+// Rótulos das ações. Primeiro as ações lógicas do agente 0.2+; depois os
+// direitos brutos do Windows, que só aparecem em eventos de agentes 0.1.
+// Tipos novos aparecem com o próprio nome até ganharem um rótulo aqui (e em
+// web/lib/filters.ts).
 export const ACTION_LABELS: Record<string, string> = {
+  created: 'Criação',
+  modified: 'Alteração',
   read: 'Leitura',
-  write: 'Escrita',
-  append: 'Acréscimo / criar subpasta',
-  execute: 'Execução',
-  delete: 'Exclusão',
-  delete_child: 'Exclusão de item da pasta',
-  write_attributes: 'Alteração de atributos',
-  permission_change: 'Alteração de permissão',
-  owner_change: 'Alteração de dono',
+  deleted: 'Exclusão',
+  recycled: 'Enviado para a Lixeira',
+  renamed: 'Renomeação',
+  moved: 'Movido',
+  permission_changed: 'Alteração de permissão',
+  owner_changed: 'Alteração de dono',
+  attributes_changed: 'Alteração de atributos',
+  denied: 'Acesso negado',
+  write: 'Escrita (direito)',
+  append: 'Acréscimo / criar subpasta (direito)',
+  execute: 'Execução (direito)',
+  delete: 'Exclusão (direito)',
+  delete_child: 'Exclusão de item da pasta (direito)',
+  write_attributes: 'Alteração de atributos (direito)',
+  permission_change: 'Alteração de permissão (direito)',
+  owner_change: 'Alteração de dono (direito)',
 };
 export const actionLabel = (a: string) => ACTION_LABELS[a] ?? a;
 
-// Ações que o painel destaca (exclusões e mudanças de permissão). Tipos novos
-// de exclusão enviados pelo agente entram aqui.
-export const SENSITIVE_ACTIONS = ['delete', 'delete_child', 'permission_change', 'owner_change'];
+// Ações que o painel destaca: exclusões, Lixeira e mudanças de permissão ou
+// dono (lógicas e, para agentes 0.1, os direitos equivalentes).
+export const SENSITIVE_ACTIONS = [
+  'deleted',
+  'recycled',
+  'permission_changed',
+  'owner_changed',
+  'delete',
+  'delete_child',
+  'permission_change',
+  'owner_change',
+];
 
 // Ordem das colunas de ação: as conhecidas primeiro, as novas em ordem alfabética.
 export function sortActions(actions: Iterable<string>): string[] {

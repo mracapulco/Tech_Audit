@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ago, health, labelIndexes, niceMax, userText } from '../lib/dashboard.ts';
-import { actionOptions, presetRange } from '../lib/filters.ts';
+import { actionGroups, eventActionText, presetRange } from '../lib/filters.ts';
 
 describe('painel', () => {
   const now = new Date('2026-10-02T12:00:00Z');
@@ -43,7 +43,17 @@ describe('painel', () => {
   it('atalhos de período e ações novas no filtro', () => {
     assert.deepEqual(presetRange('24h', now), { de: '2026-10-01T09:00', ate: '2026-10-02T09:00' });
     assert.equal(presetRange('x', now), null);
-    assert.ok(actionOptions('moved_to_recycle_bin').some(([v]) => v === 'moved_to_recycle_bin'));
-    assert.equal(actionOptions('delete').filter(([v]) => v === 'delete').length, 1);
+    const all = (sel: string) => actionGroups(sel).flatMap((g) => g.options);
+    assert.ok(all('tipo_novo').some(([v]) => v === 'tipo_novo'));
+    assert.equal(all('delete').filter(([v]) => v === 'delete').length, 1);
+    assert.equal(actionGroups('').length, 2);
+  });
+
+  it('texto da ação do evento', () => {
+    assert.equal(eventActionText({ action: 'recycled', actions: ['delete'] }), 'Enviado para a Lixeira');
+    assert.equal(eventActionText({ action: 'created', actions: [], item_type: 'folder' }), 'Criação (pasta)');
+    assert.equal(eventActionText({ action: 'permission_changed', actions: [], count: 1200 }), 'Alteração de permissão · 1.200 operações');
+    assert.equal(eventActionText({ action: null, actions: ['write', 'delete'] }), 'Escrita (direito), Exclusão (direito)');
+    assert.equal(eventActionText({ action: null, actions: [] }), '-');
   });
 });

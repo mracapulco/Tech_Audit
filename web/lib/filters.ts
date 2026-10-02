@@ -1,19 +1,44 @@
 // Conversão entre os filtros da tela (horário de Brasília, nomes em
 // português) e os parâmetros da API. Sem dependências, para testar com node --test.
 
-export const ACTION_LABELS: Record<string, string> = {
-  write: 'Escrita',
-  append: 'Acréscimo / criar subpasta',
-  delete: 'Exclusão',
-  delete_child: 'Exclusão de item da pasta',
+// Ações lógicas do agente 0.2+ (mesmos rótulos de server/src/reports/table.ts).
+export const LOGICAL_ACTION_LABELS: Record<string, string> = {
+  created: 'Criação',
+  modified: 'Alteração',
   read: 'Leitura',
-  execute: 'Execução',
-  write_attributes: 'Alteração de atributos',
-  permission_change: 'Alteração de permissão',
-  owner_change: 'Alteração de dono',
+  deleted: 'Exclusão',
+  recycled: 'Enviado para a Lixeira',
+  renamed: 'Renomeação',
+  moved: 'Movido',
+  permission_changed: 'Alteração de permissão',
+  owner_changed: 'Alteração de dono',
+  attributes_changed: 'Alteração de atributos',
+  denied: 'Acesso negado',
 };
 
+// Direitos brutos do Windows: é o que os agentes 0.1 gravam.
+export const RAW_ACTION_LABELS: Record<string, string> = {
+  write: 'Escrita (direito)',
+  append: 'Acréscimo / criar subpasta (direito)',
+  execute: 'Execução (direito)',
+  delete: 'Exclusão (direito)',
+  delete_child: 'Exclusão de item da pasta (direito)',
+  write_attributes: 'Alteração de atributos (direito)',
+  permission_change: 'Alteração de permissão (direito)',
+  owner_change: 'Alteração de dono (direito)',
+};
+
+export const ACTION_LABELS: Record<string, string> = { ...RAW_ACTION_LABELS, ...LOGICAL_ACTION_LABELS };
+
 export const actionLabel = (a: string) => ACTION_LABELS[a] ?? a;
+
+// Texto da ação de um evento: a lógica quando existe; senão, os direitos.
+export function eventActionText(e: { action?: string | null; actions: string[]; count?: number; item_type?: string | null }): string {
+  const base = e.action ? actionLabel(e.action) : e.actions.map(actionLabel).join(', ') || '-';
+  const item = e.item_type === 'folder' ? ' (pasta)' : '';
+  const times = e.count && e.count > 1 ? ` · ${e.count.toLocaleString('pt-BR')} operações` : '';
+  return base + item + times;
+}
 
 // Brasília é UTC-3 o ano inteiro desde 2019 (sem horário de verão).
 const BRT_OFFSET_MS = -3 * 3600_000;
@@ -98,9 +123,13 @@ export function presetRange(key: string, now = new Date()): { de: string; ate: s
   return { de: isoToLocal(new Date(now.getTime() - p.hours * 3600_000)), ate: isoToLocal(now) };
 }
 
-// Opções de ação do filtro, incluindo a escolhida quando é um tipo novo do agente.
-export function actionOptions(selected: string): [string, string][] {
-  const list = Object.entries(ACTION_LABELS);
-  if (selected && !ACTION_LABELS[selected]) list.push([selected, selected]);
-  return list;
+// Opções de ação do filtro em grupos: ações lógicas, direitos dos agentes
+// antigos e, se for o caso, a escolhida quando é um tipo novo do agente.
+export function actionGroups(selected: string): { label: string; options: [string, string][] }[] {
+  const groups = [
+    { label: 'Ações', options: Object.entries(LOGICAL_ACTION_LABELS) },
+    { label: 'Direitos do Windows (agentes antigos)', options: Object.entries(RAW_ACTION_LABELS) },
+  ];
+  if (selected && !ACTION_LABELS[selected]) groups.push({ label: 'Outras', options: [[selected, selected]] });
+  return groups;
 }

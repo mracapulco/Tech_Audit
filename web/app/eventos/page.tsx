@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
-import { actionLabel, actionOptions, apiParams, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
+import { apiParams, eventActionText, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
+import { ActionSelect } from '@/components/action-select';
 import { TopBar } from '@/components/top-bar';
 
 export const metadata: Metadata = { title: 'Eventos · Tech Audit' };
@@ -22,6 +23,10 @@ interface EventRow {
   success: boolean;
   source_ip: string | null;
   process_name: string | null;
+  action: string | null;
+  new_path: string | null;
+  item_type: string | null;
+  count: number;
 }
 
 const PAGE_SIZE = '50';
@@ -73,17 +78,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
             Caminho (inclui subpastas)
             <input name="caminho" defaultValue={f.caminho} placeholder="D:\Dados\Financeiro" />
           </label>
-          <label>
-            Ação
-            <select name="acao" defaultValue={f.acao}>
-              <option value="">Todas</option>
-              {actionOptions(f.acao).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
+          <ActionSelect value={f.acao} />
           <label>
             De
             <input type="datetime-local" name="de" defaultValue={f.de} required />
@@ -156,7 +151,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                         '-'
                       )}
                     </td>
-                    <td>{e.actions.map(actionLabel).join(', ') || '-'}</td>
+                    <td>{eventActionText(e)}</td>
                     <td className="path" title={e.process_name ? `Processo: ${e.process_name}` : undefined}>
                       {e.path ? (
                         <Link className="cell-link" href={`/eventos?${screenQuery({ ...f, caminho: e.path })}`}>
@@ -165,6 +160,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                       ) : (
                         '-'
                       )}
+                      {e.new_path && <span className="new-path">→ {e.new_path}</span>}
                     </td>
                     <td className={e.success ? 'ok' : 'fail'}>{e.success ? 'Sucesso' : 'Falha'}</td>
                     <td>{e.source_ip ?? '-'}</td>

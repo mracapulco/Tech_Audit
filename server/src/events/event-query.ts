@@ -37,6 +37,10 @@ export const ACTIONS = [
 ] as const;
 export const ACTION_NAME = /^[a-z][a-z0-9_]{0,63}$/;
 
+// Ações que contam para painel e relatórios: a ação lógica (agente 0.2+) ou,
+// em eventos de agentes 0.1, os direitos brutos.
+export const EFFECTIVE_ACTIONS_SQL = '(CASE WHEN e.action IS NOT NULL THEN ARRAY[e.action] ELSE e.actions END)';
+
 export interface EventFilters {
   // Tenants permitidos; null = todos (equipe Tech Master sem tenant escolhido).
   tenantIds: string[] | null;
@@ -184,7 +188,7 @@ export function eventWhere(f: EventFilters, p: (v: unknown) => string): string[]
     const a = p(f.action);
     where.push(`(e.action = ${a} OR ${a} = ANY(e.actions))`);
   }
-  if (f.anyActions?.length) where.push(`e.actions && ${p(f.anyActions)}::text[]`);
+  if (f.anyActions?.length) where.push(`${EFFECTIVE_ACTIONS_SQL} && ${p(f.anyActions)}::text[]`);
   return where;
 }
 

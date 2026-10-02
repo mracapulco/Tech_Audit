@@ -4,7 +4,7 @@ import { bucketFor, bucketKeys, bucketLabel } from '../src/reports/report-query.
 import { columnWidths, fitText, pdfSafe, reportPdf } from '../src/reports/pdf.js';
 import { cellText, sortActions, type ReportTable } from '../src/reports/table.js';
 import { colName, excelDate, reportXlsx } from '../src/reports/xlsx.js';
-import { agentHealth } from '../src/reports/reports.service.js';
+import { agentHealth, lastContact } from '../src/reports/reports.service.js';
 import { unzip } from './fixtures.js';
 
 const table: ReportTable = {
@@ -79,7 +79,7 @@ describe('formatos dos relatórios', () => {
   });
 
   it('ações conhecidas primeiro, novas em ordem alfabética', () => {
-    assert.deepEqual(sortActions(['moved_to_recycle_bin', 'delete', 'created', 'read', 'delete']), ['read', 'delete', 'created', 'moved_to_recycle_bin']);
+    assert.deepEqual(sortActions(['tipo_novo', 'delete', 'created', 'read', 'delete']), ['created', 'read', 'delete', 'tipo_novo']);
   });
 
   it('intervalos do gráfico por período, no horário de Brasília', () => {
@@ -109,5 +109,11 @@ describe('formatos dos relatórios', () => {
     assert.equal(agentHealth({ lastSeenAt: ago(30), disabledAt: null }, now), 'stale');
     assert.equal(agentHealth({ lastSeenAt: null, disabledAt: null }, now), 'never');
     assert.equal(agentHealth({ lastSeenAt: ago(0.5), disabledAt: now }, now), 'disabled');
+    // Agente 0.2+: vale o sinal de vida, com limites curtos.
+    assert.equal(agentHealth({ lastSeenAt: ago(30), lastHeartbeatAt: ago(1 / 60), disabledAt: null }, now), 'ok');
+    assert.equal(agentHealth({ lastSeenAt: ago(0.1), lastHeartbeatAt: ago(0.5), disabledAt: null }, now), 'late');
+    assert.equal(agentHealth({ lastSeenAt: null, lastHeartbeatAt: ago(2), disabledAt: null }, now), 'stale');
+    assert.equal(lastContact({ lastSeenAt: ago(2), lastHeartbeatAt: ago(1) })?.toISOString(), ago(1).toISOString());
+    assert.equal(lastContact({ lastSeenAt: null, lastHeartbeatAt: null }), null);
   });
 });

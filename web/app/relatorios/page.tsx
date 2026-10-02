@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ActionSelect } from '@/components/action-select';
 import { TopBar } from '@/components/top-bar';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
 import { formatInt, REPORT_TYPES } from '@/lib/dashboard';
-import { actionOptions, apiParams, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
+import { apiParams, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
 
 export const metadata: Metadata = { title: 'Relatórios · Tech Audit' };
 
@@ -76,17 +77,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             Caminho (inclui subpastas)
             <input name="caminho" defaultValue={f.caminho} placeholder="D:\Dados\Financeiro" />
           </label>
-          <label>
-            Ação
-            <select name="acao" defaultValue={f.acao}>
-              <option value="">Todas</option>
-              {actionOptions(f.acao).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
+          <ActionSelect value={f.acao} />
           <label>
             De
             <input type="datetime-local" name="de" defaultValue={f.de} required />
