@@ -5,9 +5,9 @@ import "testing"
 func TestNormalizeEndpoint(t *testing.T) {
 	cases := map[string]string{
 		"":                                       "",
-		"https://ingest.audit.techmaster.inf.br": "https://ingest.audit.techmaster.inf.br/v1/events",
-		" https://ingest.audit.techmaster.inf.br/ ": "https://ingest.audit.techmaster.inf.br/v1/events",
-		"ingest.audit.techmaster.inf.br":            "https://ingest.audit.techmaster.inf.br/v1/events",
+		"https://ingest-audit.techmaster.inf.br": "https://ingest-audit.techmaster.inf.br/v1/events",
+		" https://ingest-audit.techmaster.inf.br/ ": "https://ingest-audit.techmaster.inf.br/v1/events",
+		"ingest-audit.techmaster.inf.br":            "https://ingest-audit.techmaster.inf.br/v1/events",
 		"http://192.168.0.10:3101":                  "http://192.168.0.10:3101/v1/events",
 		"http://192.168.0.10:3101/v1/events":        "http://192.168.0.10:3101/v1/events",
 		"https://x.example/v1/events/":              "https://x.example/v1/events",

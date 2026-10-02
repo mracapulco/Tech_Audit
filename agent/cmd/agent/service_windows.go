@@ -190,7 +190,7 @@ func checkExistingDataDir(dir string) error {
 // e o inicia. Rodar de novo atualiza o executável e a configuração.
 func install(args []string) error {
 	fl := flag.NewFlagSet("install", flag.ContinueOnError)
-	endpoint := fl.String("endpoint", "", "URL de envio dos eventos (ex.: https://ingest.audit.techmaster.inf.br/v1/events)")
+	endpoint := fl.String("endpoint", "", "URL de envio dos eventos (ex.: https://ingest-audit.techmaster.inf.br/v1/events)")
 	enrollment := fl.String("enrollment-token", "", "token de registro gerado no portal")
 	caFile := fl.String("ca-file", "", "PEM com a CA do servidor, se não estiver no repositório do Windows")
 	if err := fl.Parse(args); err != nil {

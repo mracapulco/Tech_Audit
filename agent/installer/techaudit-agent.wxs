@@ -6,7 +6,7 @@
   servidor e o token de instalação gerado no portal.
 
   Instalação silenciosa (sem telas):
-    msiexec /i TechAuditAgent.msi /qn ENDPOINT=https://ingest.audit.techmaster.inf.br ENROLLMENT_TOKEN=ta_enr_...
+    msiexec /i TechAuditAgent.msi /qn ENDPOINT=https://ingest-audit.techmaster.inf.br ENROLLMENT_TOKEN=ta_enr_...
   Os mesmos parâmetros sem /qn abrem o assistente já preenchido.
 
   ENDPOINT e ENROLLMENT_TOKEN vão para HKLM\SOFTWARE\TechAudit\Agent, lidos pelo
@@ -104,7 +104,7 @@
         <Control Id="Title" Type="Text" X="15" Y="8" Width="340" Height="14" Transparent="yes" NoPrefix="yes" Text="{\TA_Title}Conexão com o Tech Audit"/>
         <Control Id="Description" Type="Text" X="25" Y="23" Width="330" Height="14" Transparent="yes" NoPrefix="yes" Text="Copie os dois valores da tela Instalar agente do portal."/>
         <Control Id="EndpointLabel" Type="Text" X="20" Y="56" Width="330" Height="12" NoPrefix="yes" Text="Endereço do servidor:"/>
-        <Control Id="EndpointHint" Type="Text" X="20" Y="88" Width="330" Height="12" NoPrefix="yes" Text="{\TA_Small}Exemplo: https://ingest.audit.techmaster.inf.br"/>
+        <Control Id="EndpointHint" Type="Text" X="20" Y="88" Width="330" Height="12" NoPrefix="yes" Text="{\TA_Small}Exemplo: https://ingest-audit.techmaster.inf.br"/>
         <Control Id="TokenLabel" Type="Text" X="20" Y="110" Width="330" Height="12" NoPrefix="yes" Text="Token de instalação:"/>
         <Control Id="TokenHint" Type="Text" X="20" Y="142" Width="330" Height="24" NoPrefix="yes" Text="{\TA_Small}Começa com ta_enr_. Vale para poucas instalações e por tempo limitado; se expirar, gere outro no portal."/>
         <Control Id="UpgradeHint" Type="Text" X="20" Y="172" Width="330" Height="24" NoPrefix="yes" Hidden="yes"
