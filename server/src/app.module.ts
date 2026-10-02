@@ -21,6 +21,8 @@ import { LicenseService } from './licensing/license.service.js';
 import { AuditLogService } from './portal/audit-log.service.js';
 import { TenantsController } from './portal/tenants.controller.js';
 import { PrismaService } from './prisma.service.js';
+import { ReportsController } from './reports/reports.controller.js';
+import { ReportsService } from './reports/reports.service.js';
 
 @Module({
   controllers: [
@@ -34,6 +36,7 @@ import { PrismaService } from './prisma.service.js';
     AdminUsersController,
     ConfigController,
     AgentConfigController,
+    ReportsController,
   ],
   providers: [
     PrismaService,
@@ -48,6 +51,7 @@ import { PrismaService } from './prisma.service.js';
     EventsService,
     AdminGuard,
     AuditConfigService,
+    ReportsService,
   ],
 })
 export class AppModule {}

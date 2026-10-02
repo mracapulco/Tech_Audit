@@ -106,8 +106,8 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
                 <h2>Volume auditado</h2>
                 <span className={`pill ${vs.tone}`}>{vs.label}</span>
               </div>
-              <div className="bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={barWidth(view.volume.percent)} aria-label="Volume auditado">
-                <span className={`bar-fill ${vs.tone}`} style={{ width: `${barWidth(view.volume.percent)}%` }} />
+              <div className="volume-bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={barWidth(view.volume.percent)} aria-label="Volume auditado">
+                <span className={`volume-fill ${vs.tone}`} style={{ width: `${barWidth(view.volume.percent)}%` }} />
               </div>
               <p className="small">
                 <strong>{formatBytes(view.volume.used_bytes)}</strong> de {view.volume.max_bytes === '0' ? '-' : formatBytes(view.volume.max_bytes)} contratados

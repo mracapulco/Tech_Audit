@@ -28,7 +28,9 @@ describe('filtros da pesquisa de eventos', () => {
   it('valida datas, ação e campos repetidos', () => {
     assert.throws(() => parseFilters({ from: 'ontem' }, null, now), FilterError);
     assert.throws(() => parseFilters({ from: '2026-10-02', to: '2026-10-01' }, null, now), /antes do fim/);
-    assert.throws(() => parseFilters({ action: 'drop' }, null, now), /ação desconhecida/);
+    assert.throws(() => parseFilters({ action: 'drop table' }, null, now), /ação inválida/);
+    // Tipos novos do agente passam sem mudar o servidor.
+    assert.equal(parseFilters({ action: 'moved_to_recycle_bin' }, null, now).action, 'moved_to_recycle_bin');
     assert.throws(() => parseFilters({ user: ['a', 'b'] }, null, now), /uma vez/);
     const f = parseFilters({ user: '  joao ', path: 'D:\\Dados\\', action: 'delete' }, null, now);
     assert.deepEqual([f.user, f.pathPrefix, f.action], ['joao', 'D:\\Dados\\', 'delete']);
