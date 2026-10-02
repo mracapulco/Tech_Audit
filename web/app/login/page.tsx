@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Logo } from '@/components/logo';
+import techMaster from '@/assets/techmaster.png';
 import { LoginForm } from './login-form';
 
 export const metadata: Metadata = { title: 'Entrar · Tech Audit' };
@@ -18,7 +19,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <li>Alerta quando um servidor para de enviar dados</li>
           </ul>
         </div>
-        <p className="login-by">Um produto Tech Master</p>
+        <p className="login-by">
+          Um produto
+          <img src={techMaster.src} alt="Tech Master Informática" width={157} height={36} />
+        </p>
       </section>
       <section className="login-panel">
         <LoginForm notice={sp.expirada ? 'Sua sessão expirou. Entre de novo.' : undefined} />
