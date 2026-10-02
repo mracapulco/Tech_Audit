@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
 import { ACTION_LABELS, actionLabel, apiParams, formatDateTime, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
-import { logout } from '../actions';
+import { TopBar } from '@/components/top-bar';
 
 export const metadata: Metadata = { title: 'Eventos · Tech Audit' };
 
@@ -44,17 +44,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <header className="topbar">
-        <strong>Tech Audit</strong>
-        <span className="muted">
-          {user.name} · {user.email}
-        </span>
-        <form action={logout}>
-          <button type="submit" className="link">
-            Sair
-          </button>
-        </form>
-      </header>
+      <TopBar user={user} active="eventos" />
 
       <main className="page">
         <h1>Pesquisa de eventos</h1>

@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { parseArgs } from 'node:util';
 import {
+  bootstrapAdmin,
   createEnrollmentToken,
   createLicense,
   createTenant,
@@ -26,7 +27,9 @@ const USAGE = `uso: node dist/cli.js <comando> [opções]
               perfis: msp_admin, msp_operator (Tech Master, sem --tenant),
                       tenant_admin, tenant_auditor (cliente, com --tenant)
               sem --password, gera uma senha e mostra uma única vez
-  user:password --email <e-mail> [--password <senha>]`;
+  user:password --email <e-mail> [--password <senha>]
+  admin:bootstrap                      cria o primeiro administrador, se não houver nenhum,
+                                       com BOOTSTRAP_ADMIN_EMAIL e BOOTSTRAP_ADMIN_PASSWORD`;
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -108,6 +111,17 @@ async function main() {
             password: values.password,
           }),
         );
+      case 'admin:bootstrap': {
+        const email = process.env.BOOTSTRAP_ADMIN_EMAIL;
+        const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+        if (!email || !password) {
+          console.log('admin:bootstrap: BOOTSTRAP_ADMIN_EMAIL/PASSWORD não definidos; nada a fazer');
+          return;
+        }
+        const r = await bootstrapAdmin(db, email, password);
+        console.log(r.created ? `administrador ${r.email} criado` : 'já existe administrador; nada a fazer');
+        return;
+      }
       case 'user:password':
         return print(await setUserPassword(db, need('email'), values.password));
       case 'agent:disable':

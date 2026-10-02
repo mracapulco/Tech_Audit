@@ -1,20 +1,63 @@
+# Tech Audit completo: banco (PostgreSQL + TimescaleDB), API e portal.
+# Configuração no arquivo .env (copie de .env.example). O mesmo arquivo serve
+# para testar na máquina local e para a produção.
+#
+#   docker compose up -d --build      sobe tudo
+#   docker compose up -d db           só o banco, para desenvolver com npm
+#   docker compose logs -f server     acompanha a API
+
 services:
   db:
     image: timescale/timescaledb:latest-pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: techaudit
-      POSTGRES_PASSWORD: techaudit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-techaudit}
       POSTGRES_DB: techaudit
+    # Só na própria máquina: o banco nunca fica exposto na rede.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U techaudit -d techaudit"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://techaudit:${POSTGRES_PASSWORD:-techaudit}@db:5432/techaudit?schema=public
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      TZ: America/Sao_Paulo
+    # Porta usada pelos agentes (/v1/enroll e /v1/events).
+    ports:
+      - "${API_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      API_URL: http://server:3001
+      PUBLIC_AGENT_URL: ${PUBLIC_AGENT_URL:-http://localhost:3001}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      TZ: America/Sao_Paulo
+    ports:
+      - "${PORTAL_PORT:-3000}:3000"
 
 volumes:
   db-data:

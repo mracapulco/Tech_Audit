@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { AdminGuard } from './admin/admin.guard.js';
+import { AdminTenantsController } from './admin/admin-tenants.controller.js';
+import { AdminUsersController } from './admin/admin-users.controller.js';
 import { AuthController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { PortalAuthGuard } from './auth/portal-auth.guard.js';
@@ -24,6 +27,8 @@ import { PrismaService } from './prisma.service.js';
     AuthController,
     TenantsController,
     EventsController,
+    AdminTenantsController,
+    AdminUsersController,
   ],
   providers: [
     PrismaService,
@@ -36,6 +41,7 @@ import { PrismaService } from './prisma.service.js';
     PortalAuthGuard,
     AuditLogService,
     EventsService,
+    AdminGuard,
   ],
 })
 export class AppModule {}

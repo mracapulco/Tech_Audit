@@ -116,3 +116,12 @@ export async function setUserPassword(db: PrismaService, email: string, password
   await db.userSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
   return { email: user.email, password: generated };
 }
+
+// Cria o primeiro administrador da Tech Master se ainda não houver nenhum.
+// Usado na subida do contêiner (BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PASSWORD).
+export async function bootstrapAdmin(db: PrismaService, email: string, password: string, name = 'Administrador') {
+  const existing = await db.user.count({ where: { role: 'msp_admin' } });
+  if (existing > 0) return { created: false as const };
+  const u = await createUser(db, { email, name, role: 'msp_admin', password });
+  return { created: true as const, email: u.email };
+}

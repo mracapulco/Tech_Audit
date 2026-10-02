@@ -68,3 +68,43 @@ export async function errorMessage(r: Response): Promise<string> {
     return r.statusText;
   }
 }
+
+export interface ActionResult {
+  ok?: string;
+  error?: string;
+  // Valor mostrado uma única vez (senha gerada, token de instalação).
+  secret?: { label: string; value: string; config?: string };
+}
+
+// Chamada de escrita para as ações do portal; nunca lança por erro da API.
+export async function apiSend<T>(
+  method: 'POST' | 'PATCH',
+  path: string,
+  body: unknown = {},
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  const token = await sessionToken();
+  if (!token) redirect('/login');
+  let r: Response;
+  try {
+    r = await apiFetch(path, {
+      method,
+      token,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return { ok: false, error: 'Servidor indisponível. Tente novamente em instantes.' };
+  }
+  if (r.status === 401) redirect('/login?expirada=1');
+  if (!r.ok) return { ok: false, error: capitalize(await errorMessage(r)) };
+  return { ok: true, data: (await r.json()) as T };
+}
+
+const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+// Telas de administração: só o administrador da Tech Master.
+export async function requireAdmin(): Promise<CurrentUser> {
+  const user = await apiGet<CurrentUser>('/api/auth/me');
+  if (user.role !== 'msp_admin') redirect('/eventos');
+  return user;
+}

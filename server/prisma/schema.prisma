@@ -6,6 +6,9 @@ generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
   moduleFormat = "esm"
+  // Fixo: sem o tsconfig.json por perto (ex.: no build do Docker) o Prisma
+  // gera imports ".ts", que o Node não resolve depois de compilado.
+  importFileExtension = "js"
 }
 
 datasource db {
