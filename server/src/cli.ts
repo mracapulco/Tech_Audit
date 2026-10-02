@@ -9,6 +9,7 @@ import {
   disableAgent,
   parseDay,
   parseVolume,
+  resetUserMfa,
   setUserPassword,
 } from './admin/admin.js';
 import { PgService } from './db/pg.service.js';
@@ -28,6 +29,8 @@ const USAGE = `uso: node dist/cli.js <comando> [opções]
                       tenant_admin, tenant_auditor (cliente, com --tenant)
               sem --password, gera uma senha e mostra uma única vez
   user:password --email <e-mail> [--password <senha>]
+  user:mfa-reset --email <e-mail>      apaga a verificação em duas etapas (celular perdido);
+                                       o próximo login pede o cadastro de novo
   admin:bootstrap                      cria o primeiro administrador, se não houver nenhum,
                                        com BOOTSTRAP_ADMIN_EMAIL e BOOTSTRAP_ADMIN_PASSWORD`;
 
@@ -124,6 +127,10 @@ async function main() {
       }
       case 'user:password':
         return print(await setUserPassword(db, need('email'), values.password));
+      case 'user:mfa-reset': {
+        const u = await resetUserMfa(db, { email: need('email') });
+        return print({ email: u.email, mfa: 'redefinida' });
+      }
       case 'agent:disable':
         return print(await disableAgent(db, need('agent')));
       default:

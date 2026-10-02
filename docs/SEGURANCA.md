@@ -62,14 +62,34 @@ dados do agente até o banco e o que o agente faz no servidor do cliente.
    Nginx, Caddy) e como os certificados serão emitidos. Sugestão: o mesmo que
    já roda no Tech_Hub, com certificado automático (Let's Encrypt). Só o
    proxy deve ficar aberto para a internet (portas 80 e 443).
-2. **Verificação em duas etapas para a equipe Tech Master.** O administrador
-   enxerga todas as empresas; uma senha vazada expõe todos os clientes.
-   Sugestão: código no celular (aplicativo autenticador) obrigatório para
-   `msp_admin` e `msp_operator` antes da produção.
-3. **Assinatura digital do agente.** Sem um certificado de assinatura de
+2. **Assinatura digital do agente.** Sem um certificado de assinatura de
    código, o Windows mostra alerta ao instalar e não há como provar que o
    `.exe` não foi alterado. Exige comprar o certificado (custo anual).
-4. **Backup.** Onde fica a cópia fora do servidor e se ela é criptografada.
+3. **Backup.** Onde fica a cópia fora do servidor e se ela é criptografada.
+
+## Verificação em duas etapas (decidido pelo Rafael em 2026-10-02)
+
+Código de 6 dígitos do Google Authenticator (ou qualquer aplicativo TOTP,
+RFC 6238) além da senha.
+
+- **Obrigatória para a equipe Tech Master** (`msp_admin`, `msp_operator`):
+  no primeiro login depois da senha, o portal mostra o QR code e só abre a
+  sessão com o primeiro código certo. Não dá para desativar.
+- **Opcional para clientes**, em "Minha conta" (clique no nome, no topo).
+- O mesmo código não vale duas vezes; 5 códigos errados encerram a tentativa
+  e é preciso digitar a senha de novo; o código tem 5 minutos para chegar.
+  Com 10 códigos errados em 15 minutos o usuário fica bloqueado nesse tempo.
+- Quem tem a senha de alguém da equipe que ainda não cadastrou o aplicativo
+  poderia cadastrar o próprio celular: cadastre logo depois de atualizar.
+- **Celular perdido:** o administrador usa "Redefinir 2 etapas" em Usuários
+  (encerra as sessões; no próximo login a pessoa cadastra o aplicativo de
+  novo). Se for o único administrador:
+  `docker compose exec server node dist/cli.js user:mfa-reset --email <e-mail>`.
+- `MFA_REQUIRED_ROLES` muda quais perfis são obrigados (padrão
+  `msp_admin,msp_operator`; `none` só para testes automatizados).
+- O segredo do aplicativo fica no banco sem criptografia própria: quem tiver
+  uma cópia do banco consegue gerar códigos (mas ainda precisa da senha).
+  Proteger os backups cobre isso.
 
 ## Próximos itens técnicos (sem decisão pendente)
 

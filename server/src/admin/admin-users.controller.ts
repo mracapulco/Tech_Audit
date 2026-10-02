@@ -3,7 +3,7 @@ import { PortalAuthGuard, type PortalRequest } from '../auth/portal-auth.guard.j
 import { AuditLogService } from '../portal/audit-log.service.js';
 import { PrismaService } from '../prisma.service.js';
 import { isMspRole, isRole } from '../auth/roles.js';
-import { createUser, setUserPassword } from './admin.js';
+import { createUser, resetUserMfa, setUserPassword } from './admin.js';
 import { AdminGuard } from './admin.guard.js';
 import { asBadRequest, asBody, bool, text } from './input.js';
 
@@ -34,6 +34,7 @@ export class AdminUsersController {
       tenant_id: u.tenantId,
       tenant_name: u.tenant?.name ?? null,
       last_login_at: u.lastLoginAt,
+      mfa_enabled: !!u.totpEnabledAt,
       disabled_at: u.disabledAt,
       created_at: u.createdAt,
     }));
@@ -110,6 +111,16 @@ export class AdminUsersController {
       ip: req.ip,
       details: { user: id, email: u.email },
     });
+  }
+
+  // Celular perdido ou trocado: apaga o autenticador e encerra as sessões. Se
+  // o perfil exige a verificação, o próximo login pede o cadastro de novo.
+  @Post(':id/mfa/reset')
+  @HttpCode(200)
+  async resetMfa(@Req() req: PortalRequest, @Param('id', ParseUUIDPipe) id: string) {
+    const u = await asBadRequest(() => resetUserMfa(this.prisma, { id }));
+    await this.audit.record({ userId: req.user.id, tenantId: u.tenantId, action: 'admin.user.mfa_reset', ip: req.ip, details: { user: id } });
+    return { id: u.id, mfa_enabled: false };
   }
 
   @Post(':id/password')
