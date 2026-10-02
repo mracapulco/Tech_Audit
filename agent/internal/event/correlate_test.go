@@ -330,3 +330,36 @@ func TestCommonDir(t *testing.T) {
 		}
 	}
 }
+
+// Cópia pelo Explorer: o arquivo, o fluxo Zone.Identifier e a DACL ajustada
+// logo depois viram um único "criou".
+func TestExplorerCopyIsOneCreated(t *testing.T) {
+	fs := newFS()
+	fs.addDir(`C:\Dados`)
+	fs.addEntry(`C:\Dados`, "qrcode.png", false, t0, t0.Add(time.Second), t0.Add(time.Second))
+	out := newRun(t, fs).add(
+		raw(IDObjectAccess, 0, `C:\Dados`, "0x2", "0x10"),
+		raw(IDObjectAccess, 50*time.Millisecond, `C:\Dados\qrcode.png`, "0x6", "0x11"),
+		raw(IDObjectAccess, 200*time.Millisecond, `C:\Dados\qrcode.png`, "0x2", "0x12"),
+		raw(IDObjectAccess, 400*time.Millisecond, `C:\Dados\qrcode.png`, "0x40000", "0x13"),
+	).flush()
+	ev := one(t, out)
+	if ev.Action != ActionCreated || ev.Details["permissions_set_on_create"] != "true" {
+		t.Errorf("cópia: %+v", ev)
+	}
+}
+
+func TestSplitStream(t *testing.T) {
+	cases := [][3]string{
+		{`C:\a\b.txt`, `C:\a\b.txt`, ""},
+		{`C:\a\b.txt:Zone.Identifier`, `C:\a\b.txt`, "Zone.Identifier"},
+		{`C:\a\b.txt:x:$DATA`, `C:\a\b.txt`, "x"},
+		{`C:\`, `C:\`, ""},
+		{`\\srv\share\a.txt`, `\\srv\share\a.txt`, ""},
+	}
+	for _, c := range cases {
+		if p, s := splitStream(c[0]); p != c[1] || s != c[2] {
+			t.Errorf("splitStream(%s) = %q %q", c[0], p, s)
+		}
+	}
+}

@@ -68,6 +68,12 @@ func Decode(r *Raw, f Filter) (ev Event, ok bool) {
 	if ev.Actions == nil {
 		ev.Actions = []string{}
 	}
+	if path, stream := splitStream(ev.Path); stream != "" {
+		// Fluxo alternativo (ex.: "foto.png:Zone.Identifier", gravado pelo
+		// Explorer ao copiar): é parte do arquivo, não um item à parte.
+		ev.Path = path
+		ev.Details = mergeDetails(ev.Details, map[string]string{"stream": stream})
+	}
 	if r.EventID != IDShareSession && !f.typeAllowed(ev.ObjectType) {
 		return ev, false
 	}
@@ -127,4 +133,17 @@ func (f Filter) pathAllowed(path string) bool {
 		}
 	}
 	return false
+}
+
+// splitStream separa o fluxo alternativo do NTFS ("arquivo:fluxo") do
+// caminho. Só olha o último componente, para não confundir com "C:".
+func splitStream(p string) (path, stream string) {
+	last := strings.LastIndex(p, `\`)
+	i := strings.Index(p[last+1:], ":")
+	if i < 0 {
+		return p, ""
+	}
+	i += last + 1
+	stream = strings.TrimSuffix(p[i+1:], ":$DATA")
+	return p[:i], stream
 }

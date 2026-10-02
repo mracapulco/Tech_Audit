@@ -267,6 +267,8 @@ func (c *Correlator) add(ev Event, out *[]Event) {
 		switch {
 		case acts["delete"]:
 			c.push(&pending{Type: pendDelete, Key: key, Deadline: ev.Time.Add(c.cfg.Window), Event: ev})
+		case acts["permission_change"] && c.permsOnCreate(ev):
+			// O Explorer ajusta a DACL logo depois de copiar: faz parte do "criou".
 		case acts["permission_change"]:
 			ev.Action = ActionPermissionChanged
 			c.bulk(ev, out)
@@ -302,6 +304,24 @@ func (c *Correlator) add(ev Event, out *[]Event) {
 			// item aparece no 4663 DELETE dele.
 		}
 	}
+}
+
+// permsOnCreate junta ao evento "criou" ainda pendente uma alteração de
+// permissão feita logo em seguida pelo mesmo usuário e processo.
+func (c *Correlator) permsOnCreate(ev Event) bool {
+	t, ok := c.st.Created[strings.ToLower(ev.Path)]
+	if !ok || absDur(ev.Time.Sub(t)) > c.cfg.Window+clockSlack {
+		return false
+	}
+	key := strings.ToLower(strings.Join([]string{ev.Computer, userKey(ev.User), ev.Path, aggGroup(ActionCreated)}, "|"))
+	p := c.find(pendAgg, key)
+	if p == nil || p.Event.Action != ActionCreated || p.Event.ProcessID != ev.ProcessID {
+		return false
+	}
+	p.Event.Actions = union(p.Event.Actions, ev.Actions)
+	p.Event.RelatedRecords = append(p.Event.RelatedRecords, ev.RecordID)
+	p.Event.Details = mergeDetails(p.Event.Details, map[string]string{"permissions_set_on_create": "true"})
+	return true
 }
 
 // --- pendências ---

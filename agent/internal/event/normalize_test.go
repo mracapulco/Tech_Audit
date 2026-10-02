@@ -134,3 +134,12 @@ func TestActionsFromMask(t *testing.T) {
 		t.Errorf("AccessList: %v", got)
 	}
 }
+
+func TestDecodeAlternateStream(t *testing.T) {
+	r := load(t, "4663_write.xml")
+	r.Data["ObjectName"] += ":Zone.Identifier:$DATA"
+	ev, _ := Decode(r, Filter{})
+	if ev.Path != `D:\Shares\Financeiro\Relatorios\2026-09.xlsx` || ev.Details["stream"] != "Zone.Identifier" {
+		t.Errorf("fluxo alternativo: %q %v", ev.Path, ev.Details)
+	}
+}
