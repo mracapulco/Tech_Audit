@@ -34,7 +34,7 @@ export async function login(_: LoginState, form: FormData): Promise<LoginState> 
     path: '/',
     expires: new Date(expires_at),
   });
-  redirect('/eventos');
+  redirect('/painel');
 }
 
 export async function logout(): Promise<void> {

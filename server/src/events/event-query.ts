@@ -20,8 +20,9 @@ export const LOGICAL_ACTIONS = [
   'denied',
 ] as const;
 
-// Filtro de ação: lógicas e também os direitos brutos do AccessMask
-// (agent/internal/event/access.go), que os agentes 0.1 gravam.
+// Direitos brutos do AccessMask (agent/internal/event/access.go), gravados em
+// "actions" por todas as versões do agente. A pesquisa e os relatórios aceitam
+// qualquer nome no formato ACTION_NAME e procuram na ação lógica e nos direitos.
 export const ACTIONS = [
   ...LOGICAL_ACTIONS,
   'read',
@@ -34,6 +35,7 @@ export const ACTIONS = [
   'permission_change',
   'owner_change',
 ] as const;
+export const ACTION_NAME = /^[a-z][a-z0-9_]{0,63}$/;
 
 export interface EventFilters {
   // Tenants permitidos; null = todos (equipe Tech Master sem tenant escolhido).
@@ -45,6 +47,8 @@ export interface EventFilters {
   // Prefixo do caminho, sem diferenciar maiúsculas (NTFS).
   pathPrefix: string | null;
   action: string | null;
+  // Pelo menos uma destas ações (painel: exclusões e permissões). Não vem da URL.
+  anyActions?: string[];
 }
 
 export interface Cursor {
@@ -84,8 +88,8 @@ export function parseFilters(q: Query, tenantIds: string[] | null, now = new Dat
   const from = date(q, 'from') ?? new Date(to.getTime() - DEFAULT_PERIOD_MS);
   if (from >= to) throw new FilterError('o início do período deve ser antes do fim');
   const action = text(q, 'action', 64);
-  if (action !== null && !(ACTIONS as readonly string[]).includes(action)) {
-    throw new FilterError(`ação desconhecida: ${action}`);
+  if (action !== null && !ACTION_NAME.test(action)) {
+    throw new FilterError(`ação inválida: ${action}`);
   }
   return { tenantIds, from, to, user: text(q, 'user', 256), pathPrefix: text(q, 'path'), action };
 }
@@ -151,12 +155,9 @@ export interface EventRow {
   end_time: string | null;
 }
 
-export function buildEventQuery(f: EventFilters, cursor: Cursor | null, limit: number): { text: string; values: unknown[] } {
-  const values: unknown[] = [];
-  const p = (v: unknown) => {
-    values.push(v);
-    return `$${values.length}`;
-  };
+// Monta o WHERE comum à pesquisa e aos relatórios (alias "e" para
+// events.file_events). `p` acrescenta um parâmetro e devolve "$n".
+export function eventWhere(f: EventFilters, p: (v: unknown) => string): string[] {
   const where = [`e.time >= ${p(f.from)}`, `e.time < ${p(f.to)}`];
   // Os dicionários também são filtrados por tenant: as subconsultas ficam
   // pequenas e nunca enxergam dados de outro cliente.
@@ -183,6 +184,24 @@ export function buildEventQuery(f: EventFilters, cursor: Cursor | null, limit: n
     const a = p(f.action);
     where.push(`(e.action = ${a} OR ${a} = ANY(e.actions))`);
   }
+  if (f.anyActions?.length) where.push(`e.actions && ${p(f.anyActions)}::text[]`);
+  return where;
+}
+
+export function paramList(): { values: unknown[]; p: (v: unknown) => string } {
+  const values: unknown[] = [];
+  return {
+    values,
+    p: (v: unknown) => {
+      values.push(v);
+      return `$${values.length}`;
+    },
+  };
+}
+
+export function buildEventQuery(f: EventFilters, cursor: Cursor | null, limit: number): { text: string; values: unknown[] } {
+  const { values, p } = paramList();
+  const where = eventWhere(f, p);
   if (cursor) {
     where.push(
       `(e.time, e.agent_id, e.source_record_id) < (${p(cursor.time)}::timestamptz, ${p(cursor.agentId)}::uuid, ${p(cursor.recordId)}::bigint)`,

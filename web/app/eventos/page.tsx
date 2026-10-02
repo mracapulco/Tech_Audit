@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
-import { ACTION_LABELS, actionLabel, apiParams, formatDateTime, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
+import { actionLabel, actionOptions, apiParams, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
 import { TopBar } from '@/components/top-bar';
 
 export const metadata: Metadata = { title: 'Eventos · Tech Audit' };
@@ -17,6 +17,7 @@ interface EventRow {
   path: string | null;
   user_domain: string | null;
   user_name: string | null;
+  user_sid: string | null;
   actions: string[];
   success: boolean;
   source_ip: string | null;
@@ -27,7 +28,8 @@ const PAGE_SIZE = '50';
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  const f = screenFilters(sp);
+  const preset = presetRange(typeof sp.periodo === 'string' ? sp.periodo : '');
+  const f = { ...screenFilters(sp), ...(preset ?? {}) };
   const cursor = typeof sp.cursor === 'string' ? sp.cursor : '';
   const user = await apiGet<CurrentUser>('/api/auth/me');
   const msp = isMsp(user);
@@ -75,7 +77,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
             Ação
             <select name="acao" defaultValue={f.acao}>
               <option value="">Todas</option>
-              {Object.entries(ACTION_LABELS).map(([v, l]) => (
+              {actionOptions(f.acao).map(([v, l]) => (
                 <option key={v} value={v}>
                   {l}
                 </option>
@@ -92,13 +94,29 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           </label>
           <div className="buttons">
             <button type="submit">Pesquisar</button>
-            <a className="button secondary" href={`/eventos/exportar?${screenQuery(f)}`} download>
-              Exportar CSV
+            <a className="button secondary" href={`/relatorios/exportar?${screenQuery(f, { tipo: 'eventos', formato: 'xlsx' })}`} download>
+              Excel
             </a>
+            <a className="button secondary" href={`/relatorios/exportar?${screenQuery(f, { tipo: 'eventos', formato: 'pdf' })}`} download>
+              PDF
+            </a>
+            <a className="button secondary" href={`/eventos/exportar?${screenQuery(f)}`} download>
+              CSV
+            </a>
+          </div>
+          <div className="presets wide">
+            <span className="muted">Período rápido:</span>
+            {PERIOD_PRESETS.map((p) => (
+              <Link key={p.key} href={`/eventos?${screenQuery({ ...f, de: '', ate: '' }, { periodo: p.key })}`}>
+                {p.label}
+              </Link>
+            ))}
           </div>
         </form>
 
-        <p className="muted small">Horários de Brasília. Os filtros de usuário e caminho não diferenciam maiúsculas.</p>
+        <p className="muted small">
+          Horários de Brasília. Os filtros de usuário e caminho não diferenciam maiúsculas. Clique num usuário ou caminho para filtrar por ele.
+        </p>
 
         {error && (
           <p className="error" role="alert">
@@ -129,10 +147,24 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                     <td className="nowrap">{formatDateTime(e.time)}</td>
                     {msp && <td>{e.tenant_name}</td>}
                     <td>{e.server}</td>
-                    <td className="nowrap">{e.user_name ? `${e.user_domain ? e.user_domain + '\\' : ''}${e.user_name}` : '-'}</td>
+                    <td className="nowrap">
+                      {e.user_name ? (
+                        <Link className="cell-link" href={`/eventos?${screenQuery({ ...f, usuario: e.user_sid ?? `${e.user_domain ?? ''}\\${e.user_name}` })}`}>
+                          {`${e.user_domain ? e.user_domain + '\\' : ''}${e.user_name}`}
+                        </Link>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td>{e.actions.map(actionLabel).join(', ') || '-'}</td>
                     <td className="path" title={e.process_name ? `Processo: ${e.process_name}` : undefined}>
-                      {e.path ?? '-'}
+                      {e.path ? (
+                        <Link className="cell-link" href={`/eventos?${screenQuery({ ...f, caminho: e.path })}`}>
+                          {e.path}
+                        </Link>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td className={e.success ? 'ok' : 'fail'}>{e.success ? 'Sucesso' : 'Falha'}</td>
                     <td>{e.source_ip ?? '-'}</td>
