@@ -46,6 +46,18 @@ ALTER TABLE events.file_events SET (
 SELECT add_compression_policy('events.file_events', INTERVAL '7 days');
 `,
   },
+  {
+    // Ações lógicas do agente 0.2 (criou, excluiu, renomeou...). Um ADD COLUMN
+    // por comando: hypertables comprimidas não aceitam vários no mesmo ALTER.
+    id: '0002_logical_actions',
+    sql: `
+ALTER TABLE events.file_events ADD COLUMN action text;        -- created, modified, deleted, recycled, renamed, moved...
+ALTER TABLE events.file_events ADD COLUMN new_path_id bigint; -- public.paths: destino de renomear/mover/Lixeira
+ALTER TABLE events.file_events ADD COLUMN item_type text;     -- file ou folder
+ALTER TABLE events.file_events ADD COLUMN event_count integer; -- operações agregadas (nulo = 1)
+ALTER TABLE events.file_events ADD COLUMN end_time timestamptz; -- última operação agregada
+`,
+  },
 ];
 
 export async function migrateEvents(pool: pg.Pool, log: (msg: string) => void = () => {}): Promise<string[]> {

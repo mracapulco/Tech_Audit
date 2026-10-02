@@ -11,8 +11,11 @@ export const CSV_HEADER = [
   'Servidor',
   'Usuário',
   'SID',
+  'Ação',
   'Caminho',
-  'Ações',
+  'Novo caminho',
+  'Quantidade',
+  'Direitos de acesso',
   'Resultado',
   'Compartilhamento',
   'IP de origem',
@@ -45,6 +48,21 @@ export function csvCell(v: string | number | null | undefined): string {
 export const csvLine = (cells: (string | number | null | undefined)[]) =>
   cells.map(csvCell).join(CSV_SEPARATOR) + '\r\n';
 
+// Nome da ação lógica em português, como aparece no relatório.
+export const ACTION_NAMES: Record<string, string> = {
+  created: 'Criou',
+  modified: 'Alterou',
+  read: 'Leu',
+  deleted: 'Excluiu',
+  recycled: 'Moveu para a Lixeira',
+  renamed: 'Renomeou',
+  moved: 'Moveu',
+  permission_changed: 'Alterou permissões',
+  owner_changed: 'Alterou o dono',
+  attributes_changed: 'Alterou atributos',
+  denied: 'Acesso negado',
+};
+
 export function eventCsvLine(r: EventRow): string {
   const user = r.user_name ? (r.user_domain ? `${r.user_domain}\\${r.user_name}` : r.user_name) : '';
   return csvLine([
@@ -53,7 +71,10 @@ export function eventCsvLine(r: EventRow): string {
     r.server,
     user,
     r.user_sid,
+    r.action ? (ACTION_NAMES[r.action] ?? r.action) : '',
     r.path,
+    r.new_path,
+    r.count,
     r.actions.join(', '),
     r.success ? 'sucesso' : 'falha',
     r.share_name,

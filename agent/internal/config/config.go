@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/mracapulco/Tech_Audit/agent/internal/event"
@@ -22,15 +23,27 @@ type Config struct {
 	// EnrollmentToken é o token de registro gerado no portal. No primeiro uso o
 	// agente o troca, em POST /v1/enroll, por um token próprio.
 	EnrollmentToken string `json:"enrollment_token"`
+	// DataDir guarda o buffer, as credenciais e o log. Padrão no Windows:
+	// C:\ProgramData\TechAudit.
+	DataDir string `json:"data_dir"`
 	// CredentialsFile guarda o agent_id e o token recebidos no registro.
 	CredentialsFile string `json:"credentials_file"`
+	// BufferFile é o banco SQLite com os eventos aguardando envio e o estado
+	// da coleta (bookmark do Event Log e correlação). Padrão: DataDir\agent.db.
+	BufferFile string `json:"buffer_file"`
+	// MaxBufferMB limita o buffer; ao atingir, leituras são descartadas antes
+	// de escritas e exclusões. Padrão 1024.
+	MaxBufferMB int `json:"max_buffer_mb"`
+	// LogFile recebe o log quando o agente roda como serviço. Padrão: DataDir\agent.log.
+	LogFile string `json:"log_file"`
 	// AgentID identifica o agente no servidor. Padrão: nome do host.
 	AgentID string `json:"agent_id"`
 	// BatchSize é o máximo de eventos por POST.
 	BatchSize int `json:"batch_size"`
 	// FlushInterval é o tempo máximo de espera por novos eventos antes de enviar um lote parcial.
 	FlushInterval Duration `json:"flush_interval"`
-	// StateFile guarda o bookmark do Event Log, para retomar de onde parou após reinício.
+	// StateFile é o bookmark da versão 0.1, antes do buffer SQLite. Lido uma
+	// vez, na primeira execução com o buffer, para não perder a posição.
 	StateFile string `json:"state_file"`
 	// StartFrom define onde começar quando não há bookmark: "now" (padrão) ou "oldest".
 	StartFrom string `json:"start_from"`
@@ -39,6 +52,26 @@ type Config struct {
 	CAFile string `json:"ca_file"`
 	// Filter descarta ruído antes do envio.
 	Filter event.Filter `json:"filter"`
+	// Correlation ajusta como eventos brutos viram ações (criou, excluiu, renomeou...).
+	Correlation Correlation `json:"correlation"`
+}
+
+// Correlation são as janelas de tempo do correlacionador (event.CorrelationConfig).
+type Correlation struct {
+	Window          Duration `json:"window"`           // padrão 3s
+	AggregateWindow Duration `json:"aggregate_window"` // padrão 60s
+	BulkThreshold   int      `json:"bulk_threshold"`   // padrão 10
+	BulkGap         Duration `json:"bulk_gap"`         // padrão 5s
+}
+
+// EventConfig converte para o formato do pacote event (zeros viram os padrões de lá).
+func (c Correlation) EventConfig() event.CorrelationConfig {
+	return event.CorrelationConfig{
+		Window:          c.Window.Duration,
+		AggregateWindow: c.AggregateWindow.Duration,
+		BulkThreshold:   c.BulkThreshold,
+		BulkGap:         c.BulkGap.Duration,
+	}
 }
 
 // Duration aceita valores como "10s" ou "1m" no JSON.
@@ -59,9 +92,16 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 func (d Duration) MarshalJSON() ([]byte, error) { return json.Marshal(d.String()) }
 
-// Load lê o arquivo e aplica os valores padrão.
+// Load lê o arquivo e aplica os valores padrão. No Windows, se o arquivo não
+// existir, usa os valores gravados pelo instalador MSI no registro
+// (HKLM\SOFTWARE\TechAudit\Agent).
 func Load(path string) (*Config, error) {
 	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		if c, ok := fromRegistry(); ok {
+			return c, c.applyDefaults()
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -86,11 +126,23 @@ func (c *Config) applyDefaults() error {
 	if c.FlushInterval.Duration <= 0 {
 		c.FlushInterval.Duration = 10 * time.Second
 	}
+	if c.DataDir == "" {
+		c.DataDir = defaultDataDir
+	}
 	if c.CredentialsFile == "" {
-		c.CredentialsFile = defaultCredentialsFile
+		c.CredentialsFile = filepath.Join(c.DataDir, "credentials.json")
+	}
+	if c.BufferFile == "" {
+		c.BufferFile = filepath.Join(c.DataDir, "agent.db")
+	}
+	if c.LogFile == "" {
+		c.LogFile = filepath.Join(c.DataDir, "agent.log")
 	}
 	if c.StateFile == "" {
-		c.StateFile = defaultStateFile
+		c.StateFile = filepath.Join(c.DataDir, "bookmark.xml")
+	}
+	if c.MaxBufferMB <= 0 {
+		c.MaxBufferMB = 1024
 	}
 	switch c.StartFrom {
 	case "":
@@ -100,4 +152,12 @@ func (c *Config) applyDefaults() error {
 		return fmt.Errorf("start_from inválido %q (use \"now\" ou \"oldest\")", c.StartFrom)
 	}
 	return nil
+}
+
+// defaultFilter é usado quando a configuração vem do instalador, sem arquivo:
+// descarta contas de computador e temporários conhecidos.
+var defaultFilter = event.Filter{
+	ExcludeMachineAccounts: true,
+	ObjectTypes:            []string{"File"},
+	ExcludePathContains:    []string{`\~$`, ".tmp", `\desktop.ini`, `\thumbs.db`, `\$recycle.bin\`},
 }

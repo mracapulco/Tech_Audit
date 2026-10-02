@@ -13,10 +13,12 @@ const (
 	IDObjectAccess  = 4663 // tentativa de acesso a objeto
 	IDObjectDeleted = 4660 // objeto excluído (só traz HandleId, sem caminho)
 	IDShareAccess   = 5145 // acesso a arquivo via compartilhamento de rede (SMB)
+	IDPermsChanged  = 4670 // permissões do objeto alteradas (SDDL antes e depois)
+	IDShareSession  = 5140 // compartilhamento acessado: IP de origem da sessão SMB
 )
 
 // EventIDs lista os IDs coletados, na ordem usada na consulta XPath.
-var EventIDs = []int{IDHandleRequest, IDObjectAccess, IDObjectDeleted, IDShareAccess}
+var EventIDs = []int{IDHandleRequest, IDObjectAccess, IDObjectDeleted, IDPermsChanged, IDShareSession, IDShareAccess}
 
 // Bits do campo Keywords que indicam o resultado da auditoria.
 const (

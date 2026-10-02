@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"syscall"
 	"time"
 	"unsafe"
@@ -46,29 +44,30 @@ func evtClose(h evtHandle) {
 	}
 }
 
-// EventLog assina um canal do Event Log (modelo pull) e persiste um bookmark
-// em stateFile a cada Commit, para retomar exatamente após o último evento enviado.
+// EventLog assina um canal do Event Log (modelo pull). Bookmark devolve a
+// posição para retomar exatamente após o último evento processado.
 type EventLog struct {
-	sub       evtHandle
-	signal    windows.Handle
-	bookmark  evtHandle
-	pending   []evtHandle
-	stateFile string
-	buf       []uint16
+	sub      evtHandle
+	signal   windows.Handle
+	bookmark evtHandle
+	pending  []evtHandle
+	buf      []uint16
 }
 
-// OpenEventLog assina channel (ex.: "Security") filtrando por query (XPath).
-// startFrom ("now" ou "oldest") só vale quando ainda não existe bookmark salvo.
-func OpenEventLog(channel, query, stateFile, startFrom string) (*EventLog, error) {
-	l := &EventLog{stateFile: stateFile, buf: make([]uint16, 64*1024)}
+// OpenEventLog assina channel (ex.: "Security") filtrando por query (XPath),
+// a partir de bookmark (XML devolvido por Bookmark). startFrom ("now" ou
+// "oldest") só vale quando bookmark é vazio.
+func OpenEventLog(channel, query, bookmark, startFrom string) (*EventLog, error) {
+	l := &EventLog{buf: make([]uint16, 64*1024)}
 
 	var flags uintptr = evtSubscribeToFutureEvents
 	if startFrom == "oldest" {
 		flags = evtSubscribeStartAtOldestRecord
 	}
 	var bmXML *uint16
-	if b, err := os.ReadFile(stateFile); err == nil && len(b) > 0 {
-		bmXML, err = windows.UTF16PtrFromString(string(b))
+	if bookmark != "" {
+		var err error
+		bmXML, err = windows.UTF16PtrFromString(bookmark)
 		if err != nil {
 			return nil, err
 		}
@@ -152,32 +151,21 @@ func (l *EventLog) Next(ctx context.Context, n int, wait time.Duration) ([][]byt
 	return out, nil
 }
 
-// Commit avança o bookmark até o último evento entregue e o grava em disco.
-func (l *EventLog) Commit() error {
-	if len(l.pending) == 0 {
-		return nil
+// Bookmark avança o bookmark até o último evento devolvido por Next e o
+// devolve em XML.
+func (l *EventLog) Bookmark() (string, error) {
+	if len(l.pending) > 0 {
+		last := l.pending[len(l.pending)-1]
+		r, _, err := procEvtUpdateBookmark.Call(uintptr(l.bookmark), uintptr(last))
+		for _, h := range l.pending {
+			evtClose(h)
+		}
+		l.pending = l.pending[:0]
+		if r == 0 {
+			return "", fmt.Errorf("EvtUpdateBookmark: %w", err)
+		}
 	}
-	last := l.pending[len(l.pending)-1]
-	r, _, err := procEvtUpdateBookmark.Call(uintptr(l.bookmark), uintptr(last))
-	for _, h := range l.pending {
-		evtClose(h)
-	}
-	l.pending = l.pending[:0]
-	if r == 0 {
-		return fmt.Errorf("EvtUpdateBookmark: %w", err)
-	}
-	x, err := l.render(l.bookmark, evtRenderBookmark)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(l.stateFile), 0o700); err != nil {
-		return err
-	}
-	tmp := l.stateFile + ".tmp"
-	if err := os.WriteFile(tmp, []byte(x), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, l.stateFile)
+	return l.render(l.bookmark, evtRenderBookmark)
 }
 
 func (l *EventLog) render(h evtHandle, flag uintptr) (string, error) {

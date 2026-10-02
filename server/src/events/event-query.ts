@@ -5,8 +5,25 @@ export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;
 export const DEFAULT_PERIOD_MS = 7 * 24 * 3600_000;
 
-// Ações gravadas pelo agente (agent/internal/event/access.go).
+// Ações lógicas do agente 0.2+ (agent/internal/event/event.go).
+export const LOGICAL_ACTIONS = [
+  'created',
+  'modified',
+  'read',
+  'deleted',
+  'recycled',
+  'renamed',
+  'moved',
+  'permission_changed',
+  'owner_changed',
+  'attributes_changed',
+  'denied',
+] as const;
+
+// Filtro de ação: lógicas e também os direitos brutos do AccessMask
+// (agent/internal/event/access.go), que os agentes 0.1 gravam.
 export const ACTIONS = [
+  ...LOGICAL_ACTIONS,
   'read',
   'write',
   'append',
@@ -127,6 +144,11 @@ export interface EventRow {
   share_name: string | null;
   source_ip: string | null;
   process_name: string | null;
+  action: string | null; // ação lógica (nulo em eventos de agentes 0.1)
+  new_path: string | null;
+  item_type: string | null;
+  count: number;
+  end_time: string | null;
 }
 
 export function buildEventQuery(f: EventFilters, cursor: Cursor | null, limit: number): { text: string; values: unknown[] } {
@@ -157,7 +179,10 @@ export function buildEventQuery(f: EventFilters, cursor: Cursor | null, limit: n
         `lower(path) LIKE ${p(likeEscape(f.pathPrefix.toLowerCase()) + '%')} ESCAPE '!')`,
     );
   }
-  if (f.action) where.push(`${p(f.action)} = ANY(e.actions)`);
+  if (f.action) {
+    const a = p(f.action);
+    where.push(`(e.action = ${a} OR ${a} = ANY(e.actions))`);
+  }
   if (cursor) {
     where.push(
       `(e.time, e.agent_id, e.source_record_id) < (${p(cursor.time)}::timestamptz, ${p(cursor.agentId)}::uuid, ${p(cursor.recordId)}::bigint)`,
@@ -168,11 +193,14 @@ SELECT to_char(e.time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS ti
        e.tenant_id, t.name AS tenant_name, e.agent_id, a.hostname AS server,
        e.source_record_id::text AS record_id, e.source_event_id AS event_id, e.kind,
        pa.path, i.domain AS user_domain, i.name AS user_name, i.sid AS user_sid,
-       e.actions, e.success, e.share_name, host(e.source_ip) AS source_ip, e.process_name
+       e.actions, e.success, e.share_name, host(e.source_ip) AS source_ip, e.process_name,
+       e.action, np.path AS new_path, e.item_type, COALESCE(e.event_count, 1) AS count,
+       to_char(e.end_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS end_time
 FROM events.file_events e
 JOIN agents a ON a.id = e.agent_id
 JOIN tenants t ON t.id = e.tenant_id
 LEFT JOIN paths pa ON pa.id = e.path_id
+LEFT JOIN paths np ON np.id = e.new_path_id
 LEFT JOIN identities i ON i.id = e.identity_id
 WHERE ${where.join('\n  AND ')}
 ORDER BY e.time DESC, e.agent_id DESC, e.source_record_id DESC

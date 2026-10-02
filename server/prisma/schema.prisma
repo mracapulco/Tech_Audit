@@ -81,6 +81,11 @@ model Agent {
   // Hash SHA-256 do token Bearer de longa duração (protótipo, antes do mTLS).
   tokenHash    String              @unique @map("token_hash")
   lastSeenAt   DateTime?           @map("last_seen_at")
+  // Último sinal de vida do agente (POST /v1/heartbeat, a cada minuto mesmo sem eventos).
+  lastHeartbeatAt DateTime?        @map("last_heartbeat_at")
+  // Eventos e bytes aguardando envio no buffer local, informados no heartbeat.
+  bufferEvents Int?                @map("buffer_events")
+  bufferBytes  BigInt?             @map("buffer_bytes")
   disabledAt   DateTime?           @map("disabled_at")
   createdAt    DateTime            @default(now()) @map("created_at")
   activations  LicenseActivation[]

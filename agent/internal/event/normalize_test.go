@@ -20,9 +20,17 @@ func load(t *testing.T, name string) *Raw {
 	return r
 }
 
-func TestNormalize4663Write(t *testing.T) {
-	n := NewNormalizer(Filter{ObjectTypes: []string{"File"}}, 0)
-	ev, ok := n.Normalize(load(t, "4663_write.xml"))
+func decode(t *testing.T, name string) Event {
+	t.Helper()
+	ev, ok := Decode(load(t, name), Filter{})
+	if !ok {
+		t.Fatalf("%s descartado", name)
+	}
+	return ev
+}
+
+func TestDecode4663Write(t *testing.T) {
+	ev, ok := Decode(load(t, "4663_write.xml"), Filter{ObjectTypes: []string{"File"}})
 	if !ok {
 		t.Fatal("evento descartado")
 	}
@@ -34,46 +42,45 @@ func TestNormalize4663Write(t *testing.T) {
 			SID: "S-1-5-21-1111111111-2222222222-3333333333-1104", LogonID: "0x3e7a1f"},
 		Path: `D:\Shares\Financeiro\Relatorios\2026-09.xlsx`, ObjectType: "File",
 		Actions: []string{"write"}, AccessMask: "0x2", Outcome: "success", HandleID: "0x1a2c",
+		ProcessID: "0x4",
 	}
 	if !reflect.DeepEqual(ev, want) {
 		t.Errorf("got  %+v\nwant %+v", ev, want)
 	}
 }
 
-func TestNormalize4660ResolvesPathFromHandle(t *testing.T) {
-	n := NewNormalizer(Filter{}, 0)
-	if _, ok := n.Normalize(load(t, "4663_delete.xml")); !ok {
-		t.Fatal("4663 descartado")
-	}
-	ev, ok := n.Normalize(load(t, "4660.xml"))
-	if !ok {
-		t.Fatal("4660 descartado")
-	}
-	if ev.Kind != "object_deleted" || ev.Path != `D:\Shares\Financeiro\antigo.docx` ||
-		!reflect.DeepEqual(ev.Actions, []string{"delete"}) {
-		t.Errorf("4660 inesperado: %+v", ev)
-	}
-}
-
-func TestNormalize4656Denied(t *testing.T) {
-	n := NewNormalizer(Filter{}, 0)
-	ev, _ := n.Normalize(load(t, "4656_denied.xml"))
+func TestDecode4656Denied(t *testing.T) {
+	ev := decode(t, "4656_denied.xml")
 	if ev.Outcome != "failure" || ev.Kind != "handle_request" || !reflect.DeepEqual(ev.Actions, []string{"read"}) {
 		t.Errorf("4656 inesperado: %+v", ev)
 	}
 }
 
-func TestNormalize5145(t *testing.T) {
-	n := NewNormalizer(Filter{}, 0)
-	ev, _ := n.Normalize(load(t, "5145.xml"))
+func TestDecode5145(t *testing.T) {
+	ev := decode(t, "5145.xml")
 	if ev.Path != `D:\Shares\Financeiro\Relatorios\2026-09.xlsx` || ev.ClientIP != "10.0.0.25" ||
 		ev.ShareName != `\\*\Financeiro` || !reflect.DeepEqual(ev.Actions, []string{"read"}) {
 		t.Errorf("5145 inesperado: %+v", ev)
 	}
 }
 
+func TestDecode4670(t *testing.T) {
+	ev := decode(t, "4670.xml")
+	if ev.Kind != "permissions_changed" || ev.Path != `D:\Shares\Financeiro\contrato.docx` ||
+		ev.Details["old_sd"] == "" || ev.Details["new_sd"] == "" {
+		t.Errorf("4670 inesperado: %+v", ev)
+	}
+}
+
+func TestDecode5140(t *testing.T) {
+	ev := decode(t, "5140.xml")
+	if ev.ClientIP != "10.0.0.25" || ev.User.LogonID != "0x3e7a1f" || ev.ShareName != `\\*\Financeiro` {
+		t.Errorf("5140 inesperado: %+v", ev)
+	}
+}
+
 func TestFilter(t *testing.T) {
-	r := load(t, "4663_write.xml")
+	ev := decode(t, "4663_write.xml")
 	cases := []struct {
 		name string
 		f    Filter
@@ -83,17 +90,25 @@ func TestFilter(t *testing.T) {
 		{"prefixo incluído", Filter{IncludePaths: []string{`d:\shares\financeiro\`}}, true},
 		{"prefixo fora", Filter{IncludePaths: []string{`D:\Shares\RH`}}, false},
 		{"trecho excluído", Filter{ExcludePathContains: []string{`\relatorios\`}}, false},
-		{"tipo diferente", Filter{ObjectTypes: []string{"Key"}}, false},
 	}
 	for _, c := range cases {
-		if _, ok := NewNormalizer(c.f, 0).Normalize(r); ok != c.keep {
-			t.Errorf("%s: keep=%v, esperado %v", c.name, ok, c.keep)
+		if got := c.f.Keep(ev); got != c.keep {
+			t.Errorf("%s: keep=%v, esperado %v", c.name, got, c.keep)
 		}
 	}
+	if _, ok := Decode(load(t, "4663_write.xml"), Filter{ObjectTypes: []string{"Key"}}); ok {
+		t.Error("tipo diferente deveria ser descartado")
+	}
 
-	r.Data["SubjectUserName"] = "FS01$"
-	if _, ok := NewNormalizer(Filter{ExcludeMachineAccounts: true}, 0).Normalize(r); ok {
+	ev.User.Name = "FS01$"
+	if (Filter{ExcludeMachineAccounts: true}).Keep(ev) {
 		t.Error("conta de máquina deveria ser descartada")
+	}
+
+	// Renomear de um temporário para o nome definitivo passa pelo filtro.
+	ren := Event{Path: `D:\Dados\~WRD0001.tmp`, NewPath: `D:\Dados\contrato.docx`}
+	if !(Filter{ExcludePathContains: []string{".tmp"}}).Keep(ren) {
+		t.Error("renomear para caminho permitido deveria passar")
 	}
 }
 
@@ -117,15 +132,5 @@ func TestActionsFromMask(t *testing.T) {
 	}
 	if got := ActionsFromAccessList("%%4416 %%1537\n"); !reflect.DeepEqual(got, []string{"delete", "read"}) {
 		t.Errorf("AccessList: %v", got)
-	}
-}
-
-func TestHandleCacheEviction(t *testing.T) {
-	n := NewNormalizer(Filter{}, 2)
-	for _, k := range []string{"a", "b", "c"} {
-		n.remember(k, k)
-	}
-	if _, ok := n.handles["a"]; ok || len(n.handles) != 2 {
-		t.Errorf("cache não respeitou o limite: %v", n.handles)
 	}
 }

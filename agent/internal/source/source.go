@@ -14,14 +14,15 @@ import (
 	"time"
 )
 
-// Source entrega eventos em lotes e só avança sua posição salva quando o
-// agente confirma (Commit) que o lote foi enviado.
+// Source entrega eventos em lotes. A posição (bookmark) é guardada pelo
+// agente no buffer local, na mesma transação dos eventos já processados.
 type Source interface {
 	// Next devolve até max eventos em XML. Espera no máximo wait por eventos novos
 	// e pode devolver um lote vazio. Retorna io.EOF quando a fonte acabou.
 	Next(ctx context.Context, max int, wait time.Duration) ([][]byte, error)
-	// Commit marca como processados todos os eventos já devolvidos por Next.
-	Commit() error
+	// Bookmark devolve a posição logo após o último evento devolvido por Next,
+	// para retomar dali após um reinício. Vazio se a fonte não tem posição.
+	Bookmark() (string, error)
 	Close() error
 }
 
@@ -81,5 +82,5 @@ func (f *File) Next(_ context.Context, max int, _ time.Duration) ([][]byte, erro
 	return out, nil
 }
 
-func (f *File) Commit() error { return nil }
-func (f *File) Close() error  { return nil }
+func (f *File) Bookmark() (string, error) { return "", nil }
+func (f *File) Close() error              { return nil }
