@@ -40,7 +40,7 @@ npm run start        # http://localhost:3001
 
 ```sh
 # Equipe Tech Master (vê todos os clientes)
-npm run -s cli -- user:create --email rafael@techmaster.com.br --name "Rafael" --role msp_admin
+npm run -s cli -- user:create --email rafael@techmaster.inf.br --name "Rafael" --role msp_admin
 # Usuário do cliente (só vê o próprio tenant)
 npm run -s cli -- user:create --email ti@cliente.com.br --name "TI Cliente" --role tenant_auditor --tenant <tenant_id>
 # Nova senha (encerra as sessões abertas)

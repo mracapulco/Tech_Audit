@@ -1,6 +1,6 @@
 # Tech Audit: Arquitetura e Stack
 
-> Status: **proposta para revisão** (v0.2, 2026-10-02: decisões do Rafael sobre caminhos, aplicação da auditoria, independência do produto e licenciamento)
+> Status: **proposta para revisão** (v0.3, 2026-10-02: decisões do Rafael sobre caminhos, aplicação da auditoria, independência do produto, licenciamento, retenção, hospedagem e domínios)
 > Responsável: Rafael (Tech Master)
 
 ## 1. Objetivo
@@ -65,7 +65,7 @@ Princípios:
 | Banco | **PostgreSQL 16 + TimescaleDB** | Hypertables, compressão nativa (10x a 20x), políticas de retenção e agregados contínuos sem adicionar outro banco. |
 | Filas | **Redis + BullMQ** | Desacopla ingestão de processamento, jobs de relatório e alertas. |
 | Arquivos gerados | **MinIO** (S3 compatível) | PDFs/CSVs de relatórios, pacotes do agente. |
-| Deploy | **Docker Compose** + Traefik | Mesmo modelo do Tech_Hub. Migração para Kubernetes só quando necessário. |
+| Deploy | **Docker Compose** + Traefik, na infraestrutura da Tech Master | Decisão: hospedado dentro da Tech Master, em containers Docker. Mesmo modelo do Tech_Hub. Migração para Kubernetes só quando necessário. |
 | Observabilidade | Logs JSON + Prometheus/Grafana (ou o próprio Zabbix da Tech Master) | |
 
 ### Alternativas consideradas
@@ -133,7 +133,7 @@ Evolução futura: driver minifilter ou ETW (`Microsoft-Windows-Kernel-File`) pa
 
 ### 4.5 Instalação e operação
 
-- Pacote **MSI** (WiX) ou instalador silencioso: `TechAuditAgent.msi SERVER=https://audit.techmaster.com.br TOKEN=xxxx /qn`.
+- Pacote **MSI** (WiX) ou instalador silencioso: `TechAuditAgent.msi SERVER=https://audit.techmaster.inf.br TOKEN=xxxx /qn`.
 - Executa como serviço `TechAuditAgent` com conta `LocalSystem` (necessário para ler o log de Segurança). Avaliar conta virtual com o privilégio `SeSecurityPrivilege` como alternativa de menor privilégio.
 - Configuração local mínima (URL do servidor e certificado); o restante é **configuração remota** puxada do servidor (caminhos auditados, filtros, intervalos).
 - Binário e MSI **assinados** com certificado de code signing da Tech Master (evita bloqueio por antivírus e SmartScreen).
@@ -255,7 +255,7 @@ ALTER TABLE file_events SET (timescaledb.compress, timescaledb.compress_segmentb
 SELECT add_compression_policy('file_events', INTERVAL '7 days');
 ```
 
-- **Retenção** por plano do cliente (ex.: 90 dias, 1 ano, 5 anos) via `drop_chunks` em job agendado por tenant, ou `add_retention_policy` global com exclusão complementar por tenant.
+- **Retenção** por licença: opções padrão de 90 dias, 1 ano e 5 anos, ou **valor personalizado** em dias informado pelo `msp_admin`. Aplicada via `drop_chunks` em job agendado por tenant, ou `add_retention_policy` global com exclusão complementar por tenant.
 - **Agregados contínuos** (eventos por hora por tenant/agent/ação/usuário) para dashboards rápidos.
 - **Ingestão** via `COPY`/insert em lote com o driver `pg` direto, não com o Prisma (o Prisma é lento para inserções massivas e não entende hypertables). Consultas pesadas de eventos também usam SQL direto (`$queryRaw` ou Kysely).
 - Busca por caminho: prefixo (`path LIKE '\\srv\Financeiro\%'`) usando índice `text_pattern_ops` em `paths.path`, ou `ltree` se a navegação em árvore ficar central.
@@ -310,7 +310,7 @@ Cada tenant tem uma ou mais licenças (`licenses`), criadas apenas por `msp_admi
 | Plano | Essencial / Profissional / Enterprise |
 | Limite de servidores (agentes ativos) | 3 |
 | Volume de dados contratado (soma do tamanho dos diretórios auditados nos servidores do cliente) | 2 TB |
-| Retenção de dados | 365 dias |
+| Retenção de dados | 90 dias, 1 ano, 5 anos ou personalizado (em dias) |
 | Módulos | relatórios agendados, alertas, inventário de ACL |
 | Validade | 2026-10-01 a 2027-09-30 |
 | Período de tolerância após o vencimento | 1 dia |
@@ -335,9 +335,9 @@ Regras:
 - O agente valida o certificado do servidor contra a **CA do Tech Audit embutida no binário** (pinning). Assim ele não pode ser apontado para um servidor não autorizado.
 - O heartbeat envia a versão e o hash do binário. Versões não assinadas, adulteradas ou muito antigas aparecem no portal MSP e podem ser bloqueadas.
 
-### 9.4 Instalação no próprio cliente (on-premises), se um dia existir
+### 9.4 Sem versão on-premises
 
-Se algum cliente precisar do servidor rodando na infraestrutura dele, a licença passa a ser um **arquivo de licença assinado** (Ed25519) emitido pela Tech Master, com os mesmos campos da 9.2, o ID da instalação e a data de validade. O servidor do cliente valida a assinatura com a chave pública embutida e precisa se comunicar periodicamente com o servidor de licenças da Tech Master (ex.: a cada 7 dias, com tolerância offline de 30 dias). Isso fica fora do MVP.
+**Decisão:** não haverá versão on-premises. O servidor roda só na Tech Master, então o controle de licença fica todo no servidor central e não é necessário arquivo de licença.
 
 ### 9.5 Proteção do código
 
@@ -390,11 +390,10 @@ Ferramentas: pnpm workspaces + Turborepo para a parte TypeScript; `go` modules n
 2. **Configuração da auditoria no cliente**: o agente aplica a política e as SACLs sozinho, com aviso antes, alerta depois e log imutável de todas as alterações (seção 4.6).
 3. **Tech_Hub**: o Tech Audit é um produto independente, sem login ou tenants compartilhados (seção 6.2).
 4. **Licenciamento**: controle de distribuição e licença por tenant, aplicados no servidor, com limite por **número de servidores** e **volume de dados** (soma do tamanho dos diretórios auditados) e **1 dia** de tolerância após o vencimento (seção 9).
+5. **Retenção**: opções padrão de 90 dias, 1 ano e 5 anos, mais valor personalizado em dias (seções 6.3 e 9.2).
+6. **Hospedagem**: dentro da Tech Master, em Docker (seção 3).
+7. **On-premises**: não haverá (seção 9.4).
+8. **Domínios**: `audit.techmaster.inf.br` (portal) e `ingest.audit.techmaster.inf.br` (agentes).
+9. **Autenticação do agente**: token de longa duração durante o desenvolvimento e o piloto; migração para mTLS (certificado por agente, seção 5) antes da venda para clientes (fase 5).
 
-### Em aberto
-
-1. **Autenticação do agente no protótipo**: começar direto com mTLS ou com token de longa duração e migrar na fase 5?
-2. **Retenção padrão** por plano (90 dias / 1 ano / 5 anos?).
-3. **Hospedagem**: servidor físico/VM na Tech Master ou nuvem? Afeta backup e escalabilidade.
-4. **Versão on-premises** do servidor: existe demanda? Se sim, entra a licença por arquivo assinado (seção 9.4).
-5. **Domínio** do portal e da API dos agentes (ex.: `audit.techmaster.com.br` e `ingest.audit.techmaster.com.br`).
+Não há decisões de arquitetura em aberto no momento.
