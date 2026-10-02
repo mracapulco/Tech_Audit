@@ -47,6 +47,11 @@ func runService(o options) error {
 	}
 	defer elog.Close()
 
+	// Antes de ler o agent.json de dentro dela.
+	if err := ensureDataDir(defaultDataDir); err != nil {
+		elog.Error(1, "pasta de dados: "+err.Error())
+		return err
+	}
 	logPath := filepath.Join(defaultDataDir, "agent.log")
 	if cfg, err := config.Load(o.config); err == nil {
 		logPath = cfg.LogFile
@@ -128,13 +133,17 @@ func setRecovery() error {
 	return s.SetRecoveryActionsOnNonCrashFailures(true)
 }
 
-// ensureDataDir cria a pasta de dados acessível só por SYSTEM e Administradores.
-// Se ela já existe, as permissões não são alteradas.
+// ensureDataDir garante a pasta de dados acessível só por SYSTEM e
+// Administradores. Qualquer usuário local pode criar pastas em ProgramData:
+// uma pasta que já existe só é aceita se o dono for SYSTEM ou Administradores
+// e não for um atalho (junção) para outro lugar; senão alguém poderia deixar
+// ali um agent.json ou um atalho para o serviço (SYSTEM) ler ou gravar.
 func ensureDataDir(dir string) error {
 	if _, err := os.Stat(dir); err == nil {
-		return nil
-	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+		if err := checkExistingDataDir(dir); err != nil {
+			return err
+		}
+	} else if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 	sd, err := windows.SecurityDescriptorFromString(dataDirSDDL)
@@ -147,6 +156,33 @@ func ensureDataDir(dir string) error {
 	}
 	return windows.SetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT,
 		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, dacl, nil)
+}
+
+func checkExistingDataDir(dir string) error {
+	p, err := windows.UTF16PtrFromString(dir)
+	if err != nil {
+		return err
+	}
+	attrs, err := windows.GetFileAttributes(p)
+	if err != nil {
+		return err
+	}
+	if attrs&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+		return fmt.Errorf("%s é um atalho (junção ou link) para outra pasta; apague-o e instale de novo", dir)
+	}
+	sd, err := windows.GetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
+	if err != nil {
+		return err
+	}
+	owner, _, err := sd.Owner()
+	if err != nil {
+		return err
+	}
+	if owner.IsWellKnown(windows.WinLocalSystemSid) || owner.IsWellKnown(windows.WinBuiltinAdministratorsSid) {
+		return nil
+	}
+	name, domain, _, _ := owner.LookupAccount("")
+	return fmt.Errorf("%s foi criada por %s\\%s, não por SYSTEM ou Administradores; por segurança o agente não usa essa pasta. Confira o conteúdo, apague a pasta e instale de novo", dir, domain, name)
 }
 
 // install copia o executável para Arquivos de Programas, grava o servidor e o

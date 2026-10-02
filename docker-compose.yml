@@ -47,11 +47,14 @@ services:
       DATABASE_URL: postgresql://techaudit:${POSTGRES_PASSWORD:-techaudit}@techaudit-db:5432/techaudit?schema=public
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      # Porta só dos agentes: responde apenas /v1/*. O portal (/api) fica na
+      # 3001, que não é publicada e só o contêiner web acessa.
+      AGENT_PORT: 3002
       TZ: America/Sao_Paulo
-    # Porta usada pelos agentes (/v1/enroll e /v1/events). BIND_ADDRESS=127.0.0.1
-    # deixa a porta só para o proxy HTTPS da própria máquina.
+    # Porta publicada para os agentes (/v1/enroll, /v1/events, /v1/config).
+    # BIND_ADDRESS=127.0.0.1 deixa a porta só para um proxy na própria máquina.
     ports:
-      - "${BIND_ADDRESS:-0.0.0.0}:${API_PORT:-3001}:3001"
+      - "${BIND_ADDRESS:-0.0.0.0}:${API_PORT:-3001}:3002"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
