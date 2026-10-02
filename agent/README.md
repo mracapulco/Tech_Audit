@@ -22,7 +22,12 @@ Antes de instalar, habilite a auditoria no servidor de arquivos:
    ações, resultado, horário (UTC), IP do cliente quando houver.
 3. Agrupa até `batch_size` eventos ou `flush_interval` e faz `POST` em
    `endpoint` com JSON comprimido (gzip) e `Authorization: Bearer <token>`.
-4. Só depois de uma resposta `2xx` grava o bookmark em `state_file`. Se o
+4. Na primeira execução, sem `token` nem `credentials_file`, registra-se em
+   `POST /v1/enroll` (mesmo servidor do `endpoint`) com o `enrollment_token`,
+   o hostname e um `machine_id` (hash do `MachineGuid` do Windows). O
+   servidor confere a licença do cliente e devolve o token próprio do agente,
+   salvo em `credentials_file`. Reinstalar na mesma máquina reaproveita a vaga.
+5. Só depois de uma resposta `2xx` grava o bookmark em `state_file`. Se o
    agente reiniciar ou o servidor ficar fora do ar, ele retoma do último evento
    confirmado (entrega *pelo menos uma vez*: o servidor deve deduplicar por
    `agent_id` + `record_id`; `batch_id` se repete nas novas tentativas do mesmo lote).
@@ -91,7 +96,9 @@ Copie `agent.example.json` para `agent.json` e ajuste:
 | Campo | Padrão | Descrição |
 |---|---|---|
 | `endpoint` | (obrigatório) | URL que recebe o `POST` |
-| `token` | | Enviado como `Authorization: Bearer` |
+| `token` | | Enviado como `Authorization: Bearer`. Se vazio, usa o token obtido no registro |
+| `enrollment_token` | | Token de registro gerado no servidor; trocado por um token próprio na primeira execução |
+| `credentials_file` | `C:\ProgramData\TechAudit\credentials.json` | Onde o `agent_id` e o token do registro são salvos |
 | `agent_id` | nome do host | Identificação do agente/cliente |
 | `batch_size` | `200` | Máximo de eventos por envio |
 | `flush_interval` | `10s` | Espera máxima antes de enviar um lote parcial |
@@ -105,13 +112,15 @@ Copie `agent.example.json` para `agent.json` e ajuste:
 
 ## Testar sem Windows
 
-O agente lê um XML exportado em vez do Event Log com `-replay`, e há um
-receptor de teste que imprime o que chega:
+O agente lê um XML exportado em vez do Event Log com `-replay`. Para enviar
+ao servidor de verdade, siga [server/README.md](../server/README.md). Sem
+servidor, há um receptor de teste que imprime o que chega:
 
 ```sh
-go run ./cmd/mock-receiver -token troque-este-token          # terminal 1
+go run ./cmd/mock-receiver -token teste                      # terminal 1
 cat internal/event/testdata/*.xml > /tmp/export.xml
-go run ./cmd/agent -config agent.example.json -replay /tmp/export.xml   # terminal 2
+echo '{"endpoint": "http://localhost:8080/v1/events", "token": "teste", "state_file": "/tmp/bookmark.xml"}' > /tmp/agent.json
+go run ./cmd/agent -config /tmp/agent.json -replay /tmp/export.xml   # terminal 2
 ```
 
 `-stdout` imprime os lotes em vez de enviar. No Windows, gere um XML real com:

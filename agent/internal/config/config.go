@@ -15,8 +15,15 @@ import (
 type Config struct {
 	// Endpoint recebe os lotes via HTTP POST (ex.: https://audit.techmaster.com.br/v1/events).
 	Endpoint string `json:"endpoint"`
-	// Token é enviado no cabeçalho "Authorization: Bearer <token>".
+	// Token é enviado no cabeçalho "Authorization: Bearer <token>". Se vazio,
+	// o agente usa o token salvo em CredentialsFile ou se registra com
+	// EnrollmentToken.
 	Token string `json:"token"`
+	// EnrollmentToken é o token de registro gerado no portal. No primeiro uso o
+	// agente o troca, em POST /v1/enroll, por um token próprio.
+	EnrollmentToken string `json:"enrollment_token"`
+	// CredentialsFile guarda o agent_id e o token recebidos no registro.
+	CredentialsFile string `json:"credentials_file"`
 	// AgentID identifica o agente no servidor. Padrão: nome do host.
 	AgentID string `json:"agent_id"`
 	// BatchSize é o máximo de eventos por POST.
@@ -78,6 +85,9 @@ func (c *Config) applyDefaults() error {
 	}
 	if c.FlushInterval.Duration <= 0 {
 		c.FlushInterval.Duration = 10 * time.Second
+	}
+	if c.CredentialsFile == "" {
+		c.CredentialsFile = defaultCredentialsFile
 	}
 	if c.StateFile == "" {
 		c.StateFile = defaultStateFile

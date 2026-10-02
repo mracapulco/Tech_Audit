@@ -1,6 +1,8 @@
 {
-  "endpoint": "http://localhost:8080/v1/events",
-  "token": "troque-este-token",
+  "endpoint": "http://localhost:3001/v1/events",
+  "token": "",
+  "enrollment_token": "ta_enr_gerado-no-servidor",
+  "credentials_file": "C:\\ProgramData\\TechAudit\\credentials.json",
   "agent_id": "",
   "batch_size": 200,
   "flush_interval": "10s",
