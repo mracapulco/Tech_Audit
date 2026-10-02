@@ -191,6 +191,26 @@ func TestDeleteToRecycleBin(t *testing.T) {
 	}
 }
 
+// Explorer no Windows 11: duas aberturas com DELETE e um 4660 numa delas,
+// em qualquer ordem. Deve sair um "recycled" só.
+func TestRecycleBinTwoHandles(t *testing.T) {
+	for _, order := range []string{"lixeira-primeiro", "4660-primeiro"} {
+		fs := newFS()
+		fs.recycle[strings.ToLower(`C:\Teste\c.txt`)] = `C:\$Recycle.Bin\` + sid + `\$RQX.txt`
+		a := raw(IDObjectAccess, 0, `C:\Teste\c.txt`, "0x10000", "0x3e50")
+		b := raw(IDObjectAccess, 10*time.Millisecond, `C:\Teste\c.txt`, "0x10000", "0x23f0")
+		d := raw(IDObjectDeleted, 20*time.Millisecond, "", "", "0x23f0")
+		evs := []Event{a, b, d}
+		if order == "4660-primeiro" {
+			evs = []Event{b, d, a}
+		}
+		ev := one(t, newRun(t, fs).add(evs...).flush())
+		if ev.Action != ActionRecycled || !strings.HasSuffix(ev.NewPath, `$RQX.txt`) || len(ev.RelatedRecords) != 2 {
+			t.Errorf("%s: %+v", order, ev)
+		}
+	}
+}
+
 func TestRenameInSameFolder(t *testing.T) {
 	fs := newFS()
 	fs.addDir(`D:\Dados`)

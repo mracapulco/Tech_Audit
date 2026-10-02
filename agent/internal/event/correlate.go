@@ -133,6 +133,8 @@ type pending struct {
 	Deadline time.Time `json:"deadline"`
 	Event    Event     `json:"event"`
 	Consumed bool      `json:"consumed,omitempty"`
+	// Somente delete: o 4660 confirmou a exclusão do objeto.
+	Deleted bool `json:"deleted,omitempty"`
 	// Somente bulk: itens individuais enquanto não passam do limite.
 	Items   []Event  `json:"items,omitempty"`
 	Total   int      `json:"total,omitempty"`
@@ -244,11 +246,11 @@ func (c *Correlator) add(ev Event, out *[]Event) {
 		c.rememberHandle(key, ev.Path) // o 4663 seguinte traz a ação
 	case IDObjectDeleted:
 		if p := c.find(pendDelete, key); p != nil {
-			c.remove(p)
-			d := p.Event
-			d.Action = ActionDeleted
-			d.RelatedRecords = append(d.RelatedRecords, ev.RecordID)
-			c.emit(d, out)
+			// Resolvido no fim da janela: o Explorer abre o item mais de uma
+			// vez ao mandar para a Lixeira, e o Windows registra o 4660 numa
+			// das aberturas.
+			p.Deleted = true
+			p.Event.RelatedRecords = append(p.Event.RelatedRecords, ev.RecordID)
 			return
 		}
 		ev.Path = c.st.handles[key]
@@ -399,7 +401,7 @@ func (c *Correlator) expire(now time.Time, out *[]Event) {
 		}
 		switch next.Type {
 		case pendDelete:
-			c.resolveDelete(next.Event, out)
+			c.resolveDelete(next, out)
 		case pendDirWrite:
 			c.resolveDirWrite(next.Event, out)
 		case pendAgg:
@@ -425,10 +427,32 @@ func (c *Correlator) anyDue(now time.Time) bool {
 	return !min.IsZero() && !min.After(now)
 }
 
-// resolveDelete decide o que foi um 4663 DELETE sem 4660: o item continua
-// lá (salvamento do Office, que troca o arquivo), foi para a Lixeira, ou foi
-// renomeado/movido.
-func (c *Correlator) resolveDelete(ev Event, out *[]Event) {
+// resolveDelete decide o que foi um 4663 DELETE. Com 4660, foi excluído (ou
+// mandado para a Lixeira). Sem 4660: o item continua lá (salvamento do
+// Office, que troca o arquivo), foi para a Lixeira, ou foi renomeado/movido.
+func (c *Correlator) resolveDelete(p *pending, out *[]Event) {
+	ev, deleted := p.Event, p.Deleted
+	// Outras aberturas com DELETE do mesmo item, na mesma sessão: uma ação só.
+	for _, q := range c.st.Pending {
+		if q.Type == pendDelete && !q.Consumed && q != p && q.Event.Computer == ev.Computer &&
+			q.Event.User.LogonID == ev.User.LogonID && strings.EqualFold(q.Event.Path, ev.Path) &&
+			absDur(q.Event.Time.Sub(ev.Time)) <= c.cfg.Window {
+			q.Consumed = true
+			deleted = deleted || q.Deleted
+			ev.RelatedRecords = append(append(ev.RelatedRecords, q.Event.RecordID), q.Event.RelatedRecords...)
+		}
+	}
+	if deleted {
+		ev.Action = ActionDeleted
+		if c.fs != nil {
+			if bin, ok := c.fs.RecycleBinFind(ev.Path, ev.User.SID, ev.Time.Add(-time.Minute)); ok {
+				ev.Action = ActionRecycled
+				ev.NewPath = bin
+			}
+		}
+		c.emit(ev, out)
+		return
+	}
 	if info, err := c.stat(ev.Path); err == nil {
 		ev.Action = ActionModified
 		ev.ItemType = itemType(info.IsDir)
