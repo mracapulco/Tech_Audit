@@ -71,7 +71,7 @@ func (s *Syncer) Run(ctx context.Context) {
 	t := time.NewTicker(s.Opts.Interval.Duration)
 	defer t.Stop()
 	for {
-		if err := s.Once(ctx); err != nil && ctx.Err() == nil {
+		if err := s.safeOnce(ctx); err != nil && ctx.Err() == nil {
 			s.Logf("configuração de auditoria: %v", err)
 		}
 		select {
@@ -80,6 +80,17 @@ func (s *Syncer) Run(ctx context.Context) {
 		case <-t.C:
 		}
 	}
+}
+
+// safeOnce roda Once sem deixar uma falha inesperada derrubar o agente
+// inteiro: a coleta de eventos continua e a próxima rodada tenta de novo.
+func (s *Syncer) safeOnce(ctx context.Context) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("falha interna: %v", r)
+		}
+	}()
+	return s.Once(ctx)
 }
 
 // Once faz uma rodada: busca, aplica, registra e informa.

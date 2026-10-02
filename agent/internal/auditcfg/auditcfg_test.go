@@ -25,6 +25,7 @@ type fakeSys struct {
 	writes     int
 	policySets []Policy
 	failWrite  error
+	panicWrite bool
 }
 
 func (f *fakeSys) ReadSACL(p string) (string, error) {
@@ -36,6 +37,9 @@ func (f *fakeSys) ReadSACL(p string) (string, error) {
 }
 
 func (f *fakeSys) WriteSACL(p, s string) error {
+	if f.panicWrite {
+		panic("falha simulada")
+	}
 	if f.failWrite != nil {
 		return f.failWrite
 	}
@@ -382,5 +386,17 @@ func TestWindowsAliasMaskIsRecognized(t *testing.T) {
 	s, _ := sddl.Parse("O:BAG:DUD:AI(A;OICIID;FA;;;BA)S:AI(AU;OICISAFA;DCLCRPDTCRSDWDWO;;;WD)")
 	if !s.Has(sddl.AuditACE(true, false)) {
 		t.Fatal("entrada com siglas não reconhecida")
+	}
+}
+
+// Uma falha inesperada ao aplicar não pode derrubar o agente (a coleta de
+// eventos roda no mesmo processo): vira erro e a próxima rodada tenta de novo.
+func TestSafeOnceRecoversPanic(t *testing.T) {
+	s, sys, srv, _ := setup(t)
+	sys.panicWrite = true
+	srv.cfg = Config{Version: 1, Paths: []PathConfig{{ID: finID, Path: fin, State: "active", Status: "pending", Recursive: true}}}
+	err := s.safeOnce(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "falha simulada") {
+		t.Fatalf("erro esperado, veio %v", err)
 	}
 }

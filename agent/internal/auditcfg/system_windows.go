@@ -102,10 +102,9 @@ func (WindowsSystem) WriteSACL(path, sacl string) error {
 		}
 	}
 	if acl == nil {
-		// Sem entradas: grava uma SACL vazia.
-		if acl, err = windows.ACLFromEntries(nil, nil); err != nil {
-			return err
-		}
+		// Sem entradas: grava uma SACL vazia. ACLFromEntries(nil, nil) não
+		// serve: o Windows devolve uma ACL nula e ele falha ao copiá-la.
+		acl = emptyACL()
 	}
 	info := windows.SECURITY_INFORMATION(windows.SACL_SECURITY_INFORMATION)
 	if parsed.Protected() {
@@ -173,4 +172,13 @@ func NewNotifier(logf func(string, ...any)) func(warning bool, msg string) {
 			logf("log Application: %v", err)
 		}
 	}
+}
+
+// emptyACL monta uma ACL válida sem entradas: só o cabeçalho de 8 bytes
+// (revisão ACL_REVISION, tamanho 8, nenhuma ACE).
+func emptyACL() *windows.ACL {
+	b := make([]byte, 8)
+	b[0] = 2 // ACL_REVISION
+	b[2] = 8 // AclSize (little endian)
+	return (*windows.ACL)(unsafe.Pointer(&b[0]))
 }
