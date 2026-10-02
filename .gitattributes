@@ -1,0 +1,4 @@
+# Scripts que rodam dentro dos contêineres Linux precisam de LF, mesmo
+# quando o repositório é clonado no Windows (core.autocrlf=true).
+*.sh text eol=lf
+Dockerfile text eol=lf

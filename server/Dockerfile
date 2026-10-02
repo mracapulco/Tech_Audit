@@ -15,6 +15,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts /app/package.json ./
 COPY docker-entrypoint.sh /usr/local/bin/
+# Defesa extra contra CRLF vindo de um clone no Windows.
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
 USER node
 EXPOSE 3001
 ENTRYPOINT ["docker-entrypoint.sh"]
