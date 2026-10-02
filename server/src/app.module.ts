@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { AgentConfigController } from './auditcfg/agent-config.controller.js';
+import { AuditConfigService } from './auditcfg/audit-config.service.js';
+import { ConfigController } from './auditcfg/config.controller.js';
 import { AdminGuard } from './admin/admin.guard.js';
 import { AdminTenantsController } from './admin/admin-tenants.controller.js';
 import { AdminUsersController } from './admin/admin-users.controller.js';
@@ -31,6 +34,8 @@ import { ReportsService } from './reports/reports.service.js';
     EventsController,
     AdminTenantsController,
     AdminUsersController,
+    ConfigController,
+    AgentConfigController,
     ReportsController,
   ],
   providers: [
@@ -45,6 +50,7 @@ import { ReportsService } from './reports/reports.service.js';
     AuditLogService,
     EventsService,
     AdminGuard,
+    AuditConfigService,
     ReportsService,
   ],
 })

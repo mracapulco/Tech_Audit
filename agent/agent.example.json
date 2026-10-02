@@ -14,5 +14,11 @@
     "object_types": ["File"],
     "include_paths": [],
     "exclude_path_contains": ["\\~$", ".tmp", "\\desktop.ini", "\\thumbs.db"]
+  },
+  "audit_config": {
+    "disabled": false,
+    "interval": "2m",
+    "verify_interval": "30m",
+    "size_interval": "6h"
   }
 }

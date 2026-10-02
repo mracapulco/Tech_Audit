@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/mracapulco/Tech_Audit/agent/internal/auditcfg"
 	"github.com/mracapulco/Tech_Audit/agent/internal/event"
 )
 
@@ -39,6 +40,8 @@ type Config struct {
 	CAFile string `json:"ca_file"`
 	// Filter descarta ruído antes do envio.
 	Filter event.Filter `json:"filter"`
+	// AuditConfig controla a sincronização dos caminhos auditados com o portal.
+	AuditConfig auditcfg.Options `json:"audit_config"`
 }
 
 // Duration aceita valores como "10s" ou "1m" no JSON.

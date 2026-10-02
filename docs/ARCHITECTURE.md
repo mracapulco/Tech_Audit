@@ -158,13 +158,14 @@ Fluxo de uma alteração:
 
 1. Um usuário adiciona, altera ou remove um caminho no portal. Antes de salvar, o portal mostra um **aviso explícito**: "O agente vai alterar a política de auditoria e a SACL de `D:\Dados\Financeiro` em `SRV-ARQ01`. Isso aumenta o volume do log de Segurança do Windows." O usuário confirma.
 2. O servidor grava a solicitação em `audit_config_changes` (status `pendente`) e incrementa a **versão da configuração** do agente.
-3. O agente percebe a nova versão no heartbeat, baixa a configuração (`GET /v1/config`) e, para cada caminho:
+3. O agente consulta a configuração a cada 2 minutos (`GET /v1/config`) e, para cada caminho com alteração pendente:
    - lê e guarda a SACL atual (SDDL "antes") e o estado atual do `auditpol`;
    - habilita as subcategorias necessárias (`auditpol /set /subcategory:"File System" /success:enable`, ou API `AuditSetSystemPolicy`);
    - adiciona a ACE de auditoria à SACL (`SetNamedSecurityInfo` com `SACL_SECURITY_INFORMATION`), **sem remover ACEs que já existiam**;
    - lê de novo e envia o resultado (SDDL "depois", sucesso ou erro) para `POST /v1/config/result`.
+   - o tamanho de cada caminho vai em `POST /v1/config/sizes` (seção 9.2).
 4. O agente escreve também um evento no log **Application** do Windows (origem `TechAuditAgent`), para que o administrador local veja a mudança mesmo sem acessar o portal.
-5. O servidor atualiza o status, gera um **alerta** "Configuração de auditoria alterada em SRV-ARQ01" visível no dashboard e envia **e-mail** aos administradores do tenant e à Tech Master.
+5. O servidor atualiza o status, gera um **alerta** "Configuração de auditoria alterada em SRV-ARQ01" visível no portal e (quando houver envio de e-mail) avisa por **e-mail** os administradores do tenant e a Tech Master.
 6. Na **remoção**, o agente retira apenas a ACE que ele adicionou e restaura a política anterior quando nenhum outro caminho precisa dela. A SDDL original guardada no passo 3 permite reverter manualmente se necessário.
 
 Verificação contínua: a cada ciclo de inventário o agente compara a configuração real com a esperada. Se a SACL foi removida, ou se uma **GPO sobrescreve** o `auditpol`, o caminho fica com status `divergente` e o portal gera alerta. O agente **não briga com a GPO** (reaplicar a cada 90 minutos geraria ruído); ele reporta o conflito para a equipe resolver.

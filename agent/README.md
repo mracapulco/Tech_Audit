@@ -12,7 +12,8 @@ por HTTP(S).
 | 5145 | Acesso via compartilhamento de rede (SMB) | `share_access` |
 
 Antes de instalar, habilite a auditoria no servidor de arquivos:
-**[docs/auditoria-gpo.md](docs/auditoria-gpo.md)**.
+**[docs/auditoria-gpo.md](docs/auditoria-gpo.md)**, ou cadastre os caminhos no
+portal e deixe o agente aplicar: **[docs/configuracao-pelo-portal.md](docs/configuracao-pelo-portal.md)**.
 
 ## Como funciona
 
@@ -109,6 +110,12 @@ Copie `agent.example.json` para `agent.json` e ajuste:
 | `filter.object_types` | todos | Ex.: `["File"]` |
 | `filter.include_paths` | todos | Só envia caminhos com estes prefixos |
 | `filter.exclude_path_contains` | | Descarta caminhos com estes trechos (ex.: arquivos temporários do Office `~$`) |
+| `audit_config.disabled` | `false` | Não aplica os caminhos cadastrados no portal |
+| `audit_config.interval` | `2m` | Intervalo entre consultas da configuração |
+| `audit_config.verify_interval` | `30m` | Intervalo entre verificações de divergência |
+| `audit_config.size_interval` | `6h` | Intervalo entre medições do tamanho das pastas |
+| `audit_config.state_file` | `C:\ProgramData\TechAudit\audit-config-state.json` | O que o agente aplicou |
+| `audit_config.change_log` | `C:\ProgramData\TechAudit\audit-changes.log` | Log local de alterações (só acréscimo) |
 
 ## Testar sem Windows
 
