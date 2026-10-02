@@ -1,6 +1,6 @@
 # Tech Audit: Arquitetura e Stack
 
-> Status: **proposta para revisão** (rascunho v0.1, 2026-10-02)
+> Status: **proposta para revisão** (v0.2, 2026-10-02: decisões do Rafael sobre caminhos, aplicação da auditoria, independência do produto e licenciamento)
 > Responsável: Rafael (Tech Master)
 
 ## 1. Objetivo
@@ -79,8 +79,8 @@ Princípios:
 ### 4.1 Responsabilidades
 
 1. **Eventos de arquivo** (contínuo): ler o log de Segurança do Windows em tempo real.
-2. **Inventário** (periódico, ex.: a cada 6 h e sob demanda): compartilhamentos, permissões de compartilhamento e NTFS das pastas raiz e até N níveis, volumes e espaço, tamanho por pasta.
-3. **Verificação de configuração de auditoria**: confirmar que a política de auditoria e as SACLs estão aplicadas e reportar ao servidor quando não estiverem (o portal exibe alerta "auditoria desativada em D:\Dados").
+2. **Inventário** (periódico, ex.: a cada 6 h e sob demanda): compartilhamentos, permissões de compartilhamento e NTFS das pastas raiz e até N níveis, volumes e espaço, tamanho por pasta e **tamanho total de cada caminho auditado** (usado no licenciamento, seção 9.2).
+3. **Aplicação e verificação da auditoria**: aplicar a política de auditoria e as SACLs nos caminhos definidos pelo portal, registrar cada alteração e reportar ao servidor quando a configuração estiver ausente ou divergente (o portal exibe alerta "auditoria desativada em D:\Dados"). Detalhes na seção 4.6.
 4. **Heartbeat** a cada 60 s com versão, uso de CPU/memória do agente, tamanho do buffer e atraso de leitura.
 5. **Autoatualização** a partir de pacotes assinados publicados pelo servidor.
 
@@ -88,10 +88,10 @@ Princípios:
 
 Fonte principal: **Security Event Log**, via `EvtSubscribe` (Windows Event Log API) com **bookmark** persistido, para retomar exatamente de onde parou após reinício.
 
-Pré-requisitos no servidor do cliente (o agente pode aplicar ou apenas validar, decisão em aberto):
+Pré-requisitos no servidor do cliente (aplicados pelo próprio agente, com alerta e log, conforme a seção 4.6):
 
 - Advanced Audit Policy: **Audit File System** (sucesso, opcionalmente falha), **Audit Detailed File Share** (opcional, gera muito volume), **Audit File Share**, **Audit Authorization Policy Change**.
-- **SACL** nas pastas auditadas (ex.: `Everyone` com Create/Write/Delete/Change Permissions/Take Ownership; leitura opcional por pasta, pois multiplica o volume).
+- **SACL** nos caminhos auditados (ex.: `Everyone` com Create/Write/Delete/Change Permissions/Take Ownership; leitura opcional por caminho, pois multiplica o volume).
 
 Eventos coletados:
 
@@ -135,8 +135,45 @@ Evolução futura: driver minifilter ou ETW (`Microsoft-Windows-Kernel-File`) pa
 
 - Pacote **MSI** (WiX) ou instalador silencioso: `TechAuditAgent.msi SERVER=https://audit.techmaster.com.br TOKEN=xxxx /qn`.
 - Executa como serviço `TechAuditAgent` com conta `LocalSystem` (necessário para ler o log de Segurança). Avaliar conta virtual com o privilégio `SeSecurityPrivilege` como alternativa de menor privilégio.
-- Configuração local mínima (URL do servidor e certificado); o restante é **configuração remota** puxada do servidor (pastas monitoradas, filtros, intervalos).
+- Configuração local mínima (URL do servidor e certificado); o restante é **configuração remota** puxada do servidor (caminhos auditados, filtros, intervalos).
 - Binário e MSI **assinados** com certificado de code signing da Tech Master (evita bloqueio por antivírus e SmartScreen).
+
+### 4.6 Caminhos auditados e aplicação automática da auditoria
+
+**Decisão:** os caminhos auditados são definidos **pelo portal web**, e tanto o cliente (`tenant_admin`) quanto a Tech Master (`msp_admin`/`msp_operator`) podem adicionar, alterar ou remover caminhos a qualquer momento. O agente aplica a configuração sozinho, mas **toda aplicação gera alerta e fica registrada em log**.
+
+Configuração por caminho (tabela `audited_paths`):
+
+| Campo | Exemplo |
+|---|---|
+| Servidor (agente) | `SRV-ARQ01` |
+| Caminho | `D:\Dados\Financeiro` (o portal sugere a partir do inventário de shares e pastas) |
+| Recursivo | sim (herança da SACL para subpastas e arquivos) |
+| Ações auditadas | criar, escrever, excluir, alterar permissão, alterar dono |
+| Auditar leitura | não (padrão); habilitar só onde for necessário, por causa do volume |
+| Exclusões | `*.tmp`, `~$*`, subpastas específicas |
+| Status | pendente, aplicado, erro, divergente, removendo |
+
+Fluxo de uma alteração:
+
+1. Um usuário adiciona, altera ou remove um caminho no portal. Antes de salvar, o portal mostra um **aviso explícito**: "O agente vai alterar a política de auditoria e a SACL de `D:\Dados\Financeiro` em `SRV-ARQ01`. Isso aumenta o volume do log de Segurança do Windows." O usuário confirma.
+2. O servidor grava a solicitação em `audit_config_changes` (status `pendente`) e incrementa a **versão da configuração** do agente.
+3. O agente percebe a nova versão no heartbeat, baixa a configuração (`GET /v1/config`) e, para cada caminho:
+   - lê e guarda a SACL atual (SDDL "antes") e o estado atual do `auditpol`;
+   - habilita as subcategorias necessárias (`auditpol /set /subcategory:"File System" /success:enable`, ou API `AuditSetSystemPolicy`);
+   - adiciona a ACE de auditoria à SACL (`SetNamedSecurityInfo` com `SACL_SECURITY_INFORMATION`), **sem remover ACEs que já existiam**;
+   - lê de novo e envia o resultado (SDDL "depois", sucesso ou erro) para `POST /v1/config/result`.
+4. O agente escreve também um evento no log **Application** do Windows (origem `TechAuditAgent`), para que o administrador local veja a mudança mesmo sem acessar o portal.
+5. O servidor atualiza o status, gera um **alerta** "Configuração de auditoria alterada em SRV-ARQ01" visível no dashboard e envia **e-mail** aos administradores do tenant e à Tech Master.
+6. Na **remoção**, o agente retira apenas a ACE que ele adicionou e restaura a política anterior quando nenhum outro caminho precisa dela. A SDDL original guardada no passo 3 permite reverter manualmente se necessário.
+
+Verificação contínua: a cada ciclo de inventário o agente compara a configuração real com a esperada. Se a SACL foi removida, ou se uma **GPO sobrescreve** o `auditpol`, o caminho fica com status `divergente` e o portal gera alerta. O agente **não briga com a GPO** (reaplicar a cada 90 minutos geraria ruído); ele reporta o conflito para a equipe resolver.
+
+Log de alterações (`audit_config_changes`, somente inserção, nunca atualizado ou excluído pela aplicação):
+
+- quem solicitou (usuário do portal, perfil, IP), quando, agente, caminho, tipo (adicionar/alterar/remover/reaplicar);
+- SACL e política antes e depois, resultado e mensagem de erro;
+- exibido no portal em **Configuração > Histórico de alterações** e exportável em relatório.
 
 ## 5. Comunicação e autenticação do agente
 
@@ -168,11 +205,12 @@ No início, `ingest-api`, `core-api` e `worker` podem ser **um único monorepo N
 
 ### 6.2 Multi-tenancy
 
-- Hierarquia: **Tenant** (empresa cliente) → **Site** (filial/unidade) → **Agent/Server** → **Share/Volume**.
+- **Produto independente:** o Tech Audit tem identidade, usuários, tenants e cobrança próprios. Não compartilha login nem banco com o Tech_Hub. Integrações futuras, se existirem, serão por API.
+- Hierarquia: **Tenant** (empresa cliente) → **Site** (filial/unidade) → **Agent/Server** → **Share/Volume** → **Caminho auditado**.
 - Toda tabela de dados tem `tenant_id`. Toda consulta do portal passa pelo filtro de tenant na camada de serviço **e** por **Row Level Security** no PostgreSQL (`SET app.tenant_id` por transação), como defesa em profundidade.
 - Perfis de acesso:
   - `msp_admin` / `msp_operator` (equipe Tech Master, acesso a todos os tenants)
-  - `tenant_admin` (gerencia usuários e configurações da empresa)
+  - `tenant_admin` (gerencia usuários, configurações e caminhos auditados da empresa)
   - `tenant_auditor` (consulta e relatórios, somente leitura)
   - Escopo opcional por site ou share (ex.: auditor do RH vê só `\\srv\RH`).
 - Autenticação do portal: e-mail + senha com **MFA (TOTP)** no MVP; SSO (Entra ID / Google) em fase posterior.
@@ -185,6 +223,9 @@ Relacional (gerenciado pelo Prisma):
 - `shares`, `volumes`, `acl_snapshots` (inventário com histórico)
 - `identities` (SID, `DOMAIN\user`, nome, e-mail, departamento; dicionário por tenant)
 - `paths` (dicionário de caminhos: `id`, `tenant_id`, `agent_id`, `path_hash`, `path`, `parent_id`), para não repetir strings longas em cada evento
+- `audited_paths` (caminhos auditados por agente, com opções e status; seção 4.6)
+- `audit_config_changes` (log imutável de alterações de auditoria aplicadas pelo agente; seção 4.6)
+- `licenses`, `license_activations`, `license_usage`, `installer_downloads` (licenciamento e distribuição; seção 9)
 - `report_definitions`, `report_runs`, `alert_rules`, `alerts`
 - `portal_audit_log` (quem consultou o quê no portal; o auditor também é auditado)
 
@@ -235,10 +276,11 @@ Funcionalidades do MVP:
 - **Dashboard** do tenant: agentes online/offline, eventos por dia, top usuários, top pastas, alertas recentes, status da configuração de auditoria.
 - **Pesquisa de eventos**: filtros por período, servidor, compartilhamento, caminho (com subpastas), usuário, ação, resultado, IP. Paginação por cursor (keyset), nunca `OFFSET`.
 - **Linha do tempo de um arquivo/pasta** e **linha do tempo de um usuário**.
+- **Caminhos auditados**: escolher servidor e caminho (a partir do inventário), opções de auditoria, status de aplicação e histórico de alterações (seção 4.6).
 - **Inventário**: compartilhamentos, permissões efetivas, espaço utilizado, histórico de mudanças de ACL.
 - **Relatórios**: exportação CSV/XLSX/PDF gerada de forma assíncrona (job no worker, arquivo no MinIO, link por e-mail). Relatórios agendados (ex.: semanal de exclusões).
 - **Alertas** (fase 2): exclusão em massa, renomeação em massa com extensões suspeitas, alteração de permissão em pastas sensíveis, log de segurança limpo, agente offline.
-- **Área da Tech Master** (MSP): gestão de tenants, tokens de registro, versões de agente, saúde da plataforma.
+- **Área da Tech Master** (MSP): gestão de tenants, licenças, tokens de registro, downloads do instalador, versões de agente, saúde da plataforma.
 
 ## 8. Segurança e LGPD
 
@@ -250,7 +292,59 @@ Funcionalidades do MVP:
 - Backups diários do PostgreSQL (pgBackRest) com teste de restauração periódico; cópia fora do servidor principal.
 - Integridade: hash por lote recebido gravado junto com os eventos, permitindo provar que os registros não foram alterados (útil se o relatório for usado como evidência).
 
-## 9. Estrutura do repositório (monorepo)
+## 9. Licenciamento e controle de distribuição
+
+**Decisão:** o Tech Audit é um produto novo da Tech Master, e precisamos controlar quem instala o agente, em quantos servidores e por quanto tempo.
+
+### 9.1 Onde o controle realmente acontece
+
+Como o servidor central roda na Tech Master, **o servidor é o ponto de controle**. Um agente sozinho não faz nada: ele só funciona depois de registrado em um tenant com licença válida. Copiar o instalador não dá acesso a nada sem um token de registro, e o token só é aceito se houver licença disponível. Isso é mais forte do que qualquer proteção dentro do binário, que sempre pode ser contornada.
+
+### 9.2 Licença
+
+Cada tenant tem uma ou mais licenças (`licenses`), criadas apenas por `msp_admin`. **Decisão:** o licenciamento é baseado em **número de servidores** e **volume de dados**.
+
+| Campo | Exemplo |
+|---|---|
+| Plano | Essencial / Profissional / Enterprise |
+| Limite de servidores (agentes ativos) | 3 |
+| Volume de dados contratado (soma do tamanho dos diretórios auditados nos servidores do cliente) | 2 TB |
+| Retenção de dados | 365 dias |
+| Módulos | relatórios agendados, alertas, inventário de ACL |
+| Validade | 2026-10-01 a 2027-09-30 |
+| Período de tolerância após o vencimento | 1 dia |
+
+Regras:
+
+- **Registro de agente**: `POST /v1/enroll` só é aceito se o tenant tiver licença vigente e vaga disponível. Cada agente registrado ocupa uma vaga (`license_activations`, com `agent_id`, hostname, `machine_id` e data). Desativar um agente no portal libera a vaga.
+- **Identificação da máquina**: o agente envia um `machine_id` estável (ex.: `MachineGuid` do Windows combinado com o UUID do SMBIOS, em hash). Um mesmo agente reinstalado na mesma máquina reaproveita a vaga; um certificado copiado para outra máquina é detectado e bloqueado.
+- **Volume de dados**: é a **soma do tamanho dos diretórios auditados** em todos os servidores do tenant (arquivos e subpastas, recursivamente). O agente mede o tamanho de cada caminho auditado no ciclo de inventário (varredura com `FindFirstFileEx` em modo `FIND_FIRST_EX_LARGE_FETCH`, em baixa prioridade de I/O; nos ciclos seguintes pode usar o USN Journal do NTFS para atualizar sem varrer tudo de novo) e envia o total ao servidor. Caminhos aninhados não são contados duas vezes.
+  - Ao **cadastrar um caminho** no portal, o tamanho estimado é mostrado e o portal **impede salvar** se o total passar do contratado (o `msp_admin` pode liberar manualmente).
+  - Se os diretórios já auditados **crescerem** além do limite, a auditoria **continua** (para não abrir buracos na trilha de auditoria): aos 80% o portal e o e-mail avisam o cliente e a Tech Master, aos 100% gera alerta de excedente para upgrade ou cobrança adicional, e novos caminhos ficam bloqueados até ajustar a licença.
+  - O bloqueio da ingestão acontece só por vencimento da licença.
+- **Vencimento**: a tolerância é de **1 dia**. O portal avisa com antecedência (30, 7 e 1 dia antes) por banner e e-mail. Durante a tolerância, tudo funciona e o portal exibe aviso. Depois dela, o servidor deixa de aceitar eventos (o agente continua armazenando em buffer, dentro do limite) e o portal fica somente leitura. **Os dados não são apagados** no vencimento; a exclusão segue o contrato e a LGPD. Renovar a licença retoma a ingestão, e o agente envia o que estava no buffer.
+- **Uso medido**: o servidor registra diariamente agentes ativos, volume dos diretórios auditados, eventos recebidos e espaço ocupado no banco por tenant (`license_usage`), base para faturamento e para detectar uso acima do contratado.
+
+### 9.3 Distribuição do instalador
+
+- Um único **MSI genérico, assinado** com o certificado de code signing da Tech Master. O instalador não contém segredos.
+- O download só acontece **pelo portal autenticado** (área do tenant ou área MSP), registrado em `installer_downloads` (quem, quando, versão, IP).
+- Junto com o download o portal gera o **token de registro** daquele tenant (validade curta, número máximo de usos, opcionalmente amarrado a um site). O comando de instalação exibido já traz o token.
+- Os tokens podem ser revogados a qualquer momento, e cada uso fica registrado.
+- O agente valida o certificado do servidor contra a **CA do Tech Audit embutida no binário** (pinning). Assim ele não pode ser apontado para um servidor não autorizado.
+- O heartbeat envia a versão e o hash do binário. Versões não assinadas, adulteradas ou muito antigas aparecem no portal MSP e podem ser bloqueadas.
+
+### 9.4 Instalação no próprio cliente (on-premises), se um dia existir
+
+Se algum cliente precisar do servidor rodando na infraestrutura dele, a licença passa a ser um **arquivo de licença assinado** (Ed25519) emitido pela Tech Master, com os mesmos campos da 9.2, o ID da instalação e a data de validade. O servidor do cliente valida a assinatura com a chave pública embutida e precisa se comunicar periodicamente com o servidor de licenças da Tech Master (ex.: a cada 7 dias, com tolerância offline de 30 dias). Isso fica fora do MVP.
+
+### 9.5 Proteção do código
+
+- Repositório privado com licença proprietária (`LICENSE` "Todos os direitos reservados, Tech Master").
+- Contratos com clientes proibindo engenharia reversa e redistribuição do agente.
+- Ofuscação do binário não é prioridade: o controle real está no servidor (9.1).
+
+## 10. Estrutura do repositório (monorepo)
 
 ```
 Tech_Audit/
@@ -275,24 +369,31 @@ Tech_Audit/
 
 Ferramentas: pnpm workspaces + Turborepo para a parte TypeScript; `go` modules no `agent/`; GitHub Actions para lint, testes, build das imagens Docker e build/assinatura do agente.
 
-## 10. Roadmap sugerido
+## 11. Roadmap sugerido
 
 | Fase | Entrega |
 |---|---|
-| **0. Fundação** | Monorepo, Docker Compose (Postgres+Timescale, Redis, MinIO), CI, autenticação do portal, cadastro de tenants e sites. |
-| **1. Agente mínimo** | Serviço Windows em Go, registro com token, heartbeat, leitura de 4663/4660/4670 com bookmark, buffer SQLite, envio em lote. |
-| **2. MVP do portal** | Pesquisa de eventos, linha do tempo de arquivo/usuário, dashboard, exportação CSV. Piloto em 1 cliente para medir volume real. |
-| **3. Inventário e relatórios** | Shares, ACLs, espaço em disco, relatórios PDF agendados, validação da política de auditoria. |
+| **0. Fundação** | Monorepo, Docker Compose (Postgres+Timescale, Redis, MinIO), CI, autenticação do portal, cadastro de tenants, sites e licenças (limite de agentes e validade). |
+| **1. Agente mínimo** | Serviço Windows em Go, registro com token validado contra a licença, heartbeat, leitura de 4663/4660/4670 com bookmark, buffer SQLite, envio em lote. |
+| **2. MVP do portal** | Pesquisa de eventos, linha do tempo de arquivo/usuário, dashboard, exportação CSV, cadastro de caminhos auditados com aplicação automática de SACL, alerta e histórico de alterações. Piloto em 1 cliente para medir volume real. |
+| **3. Inventário e relatórios** | Shares, ACLs, espaço em disco, relatórios PDF agendados, detecção de divergência e conflito com GPO. |
 | **4. Alertas** | Regras de anomalia (exclusão/renomeação em massa), notificações por e-mail/Teams/WhatsApp. |
-| **5. Produção** | mTLS completo, autoatualização assinada, MSI assinado, retenção por plano, SSO. |
+| **5. Produção** | mTLS completo, autoatualização assinada, MSI assinado com download controlado pelo portal, vencimento e tolerância de licença, medição de uso, retenção por plano, SSO. |
 | **6. Linux** | Coletor Samba `full_audit` e auditd. |
 
-## 11. Decisões em aberto (para o Rafael)
+## 12. Decisões
 
-1. **Auditoria de leitura**: habilitar por padrão ou só em pastas escolhidas? (impacto grande no volume)
-2. **Configuração da auditoria no cliente**: o agente aplica a política e as SACLs automaticamente, ou apenas valida e a equipe aplica via GPO?
-3. **Autenticação do agente no protótipo**: começar direto com mTLS ou com token de longa duração e migrar na fase 5?
-4. **Retenção padrão** e planos comerciais (90 dias / 1 ano / 5 anos?).
-5. **Hospedagem**: servidor físico/VM na Tech Master ou nuvem? Afeta backup e escalabilidade.
-6. **Integração com Tech_Hub**: compartilhar login/tenants com o Tech_Hub ou manter o Tech Audit independente?
-7. **Domínio** do portal e da API dos agentes (ex.: `audit.techmaster.com.br` e `ingest.audit.techmaster.com.br`).
+### Tomadas (Rafael, 2026-10-02)
+
+1. **Caminhos auditados**: definidos pelo portal web; cliente e Tech Master podem adicionar e remover caminhos a qualquer momento. Auditoria de leitura é opção por caminho, desligada por padrão (seção 4.6).
+2. **Configuração da auditoria no cliente**: o agente aplica a política e as SACLs sozinho, com aviso antes, alerta depois e log imutável de todas as alterações (seção 4.6).
+3. **Tech_Hub**: o Tech Audit é um produto independente, sem login ou tenants compartilhados (seção 6.2).
+4. **Licenciamento**: controle de distribuição e licença por tenant, aplicados no servidor, com limite por **número de servidores** e **volume de dados** (soma do tamanho dos diretórios auditados) e **1 dia** de tolerância após o vencimento (seção 9).
+
+### Em aberto
+
+1. **Autenticação do agente no protótipo**: começar direto com mTLS ou com token de longa duração e migrar na fase 5?
+2. **Retenção padrão** por plano (90 dias / 1 ano / 5 anos?).
+3. **Hospedagem**: servidor físico/VM na Tech Master ou nuvem? Afeta backup e escalabilidade.
+4. **Versão on-premises** do servidor: existe demanda? Se sim, entra a licença por arquivo assinado (seção 9.4).
+5. **Domínio** do portal e da API dos agentes (ex.: `audit.techmaster.com.br` e `ingest.audit.techmaster.com.br`).
