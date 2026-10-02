@@ -6,6 +6,9 @@ generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
   moduleFormat = "esm"
+  // Fixo: sem o tsconfig.json por perto (ex.: no build do Docker) o Prisma
+  // gera imports ".ts", que o Node não resolve depois de compilado.
+  importFileExtension = "js"
 }
 
 datasource db {
@@ -20,6 +23,7 @@ model Tenant {
   agents           Agent[]
   licenses         License[]
   enrollmentTokens EnrollmentToken[]
+  users            User[]
 
   @@map("tenants")
 }
@@ -141,4 +145,58 @@ model Identity {
 
   @@unique([tenantId, key])
   @@map("identities")
+}
+
+// Usuário do portal (seção 6.2). tenantId nulo = equipe Tech Master
+// (msp_admin/msp_operator), com acesso a todos os tenants.
+model User {
+  id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String?       @map("tenant_id") @db.Uuid
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Sempre em minúsculas.
+  email        String        @unique
+  name         String
+  // msp_admin, msp_operator, tenant_admin, tenant_auditor
+  role         String
+  // Argon2id.
+  passwordHash String        @map("password_hash")
+  lastLoginAt  DateTime?     @map("last_login_at")
+  disabledAt   DateTime?     @map("disabled_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  sessions     UserSession[]
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+// Sessão do portal: token opaco, só o hash fica no banco. Sair ou desativar o
+// usuário invalida na hora (diferente de um JWT).
+model UserSession {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  user       User      @relation(fields: [userId], references: [id])
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  ip         String?
+  userAgent  String?   @map("user_agent")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("user_sessions")
+}
+
+// Quem consultou ou exportou o quê no portal (seção 8). Somente inserção.
+model PortalAuditLog {
+  id        BigInt   @id @default(autoincrement())
+  userId    String?  @map("user_id") @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
+  // login, login_failed, logout, events.search, events.export
+  action    String
+  details   Json?
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@map("portal_audit_log")
 }

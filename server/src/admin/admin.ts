@@ -1,3 +1,6 @@
+import { randomBytes } from 'node:crypto';
+import { hashPassword } from '../auth/passwords.js';
+import { isMspRole, isRole, ROLES } from '../auth/roles.js';
 import { generateToken, hashToken } from '../common/tokens.js';
 import type { PrismaService } from '../prisma.service.js';
 
@@ -79,4 +82,46 @@ export async function createEnrollmentToken(
 // Desativar libera a vaga da licença e invalida o token do agente.
 export async function disableAgent(db: PrismaService, agentId: string) {
   return db.agent.update({ where: { id: agentId }, data: { disabledAt: new Date() } });
+}
+
+// Cria um usuário do portal. Sem senha informada, gera uma aleatória e a
+// devolve uma única vez. Perfis msp_* não têm tenant; os demais exigem.
+export async function createUser(
+  db: PrismaService,
+  o: { email: string; name: string; role: string; tenantId?: string; password?: string },
+) {
+  if (!isRole(o.role)) throw new Error(`perfil inválido: ${o.role} (use ${ROLES.join(', ')})`);
+  if (isMspRole(o.role) && o.tenantId) throw new Error(`o perfil ${o.role} é da Tech Master e não leva --tenant`);
+  if (!isMspRole(o.role) && !o.tenantId) throw new Error(`o perfil ${o.role} exige --tenant`);
+  const generated = o.password ? undefined : randomBytes(12).toString('base64url');
+  const user = await db.user.create({
+    data: {
+      email: o.email.trim().toLowerCase(),
+      name: o.name,
+      role: o.role,
+      tenantId: o.tenantId ?? null,
+      passwordHash: await hashPassword(o.password ?? generated!),
+    },
+  });
+  return { id: user.id, email: user.email, role: user.role, tenantId: user.tenantId, password: generated };
+}
+
+export async function setUserPassword(db: PrismaService, email: string, password?: string) {
+  const generated = password ? undefined : randomBytes(12).toString('base64url');
+  const user = await db.user.update({
+    where: { email: email.trim().toLowerCase() },
+    data: { passwordHash: await hashPassword(password ?? generated!) },
+  });
+  // Encerra as sessões abertas com a senha antiga.
+  await db.userSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+  return { email: user.email, password: generated };
+}
+
+// Cria o primeiro administrador da Tech Master se ainda não houver nenhum.
+// Usado na subida do contêiner (BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PASSWORD).
+export async function bootstrapAdmin(db: PrismaService, email: string, password: string, name = 'Administrador') {
+  const existing = await db.user.count({ where: { role: 'msp_admin' } });
+  if (existing > 0) return { created: false as const };
+  const u = await createUser(db, { email, name, role: 'msp_admin', password });
+  return { created: true as const, email: u.email };
 }

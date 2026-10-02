@@ -9,14 +9,24 @@ Plataforma de auditoria de servidores de arquivos (Windows, futuramente Linux) d
 | `server/` | API central e ingestão dos agentes (NestJS + Prisma) |
 | `agent/` | Agente instalado nos servidores de arquivos (Go) |
 | `web/` | Portal do cliente (Next.js) |
-| `docker-compose.yml` | PostgreSQL com TimescaleDB para desenvolvimento |
+| `docker-compose.yml` | Sistema completo (banco, API e portal); veja [docs/DEPLOY.md](docs/DEPLOY.md) |
 
-## Rodando localmente
+## Subir tudo com Docker
+
+```bash
+cp .env.example .env    # senhas e e-mail do primeiro administrador
+docker compose up -d --build
+# portal em http://localhost:3000, API dos agentes em http://localhost:3001
+```
+
+Detalhes e produção em [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Desenvolvendo
 
 Requisitos: Node.js 22.12+, Go 1.24+, Docker.
 
 ```bash
-docker compose up -d                 # banco em localhost:5432
+docker compose up -d db              # só o banco, em localhost:5432
 
 cd server && cp .env.example .env
 npm install && npm run build && npm run db:migrate

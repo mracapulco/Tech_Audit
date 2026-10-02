@@ -1,12 +1,15 @@
 import 'reflect-metadata';
 import { parseArgs } from 'node:util';
 import {
+  bootstrapAdmin,
   createEnrollmentToken,
   createLicense,
   createTenant,
+  createUser,
   disableAgent,
   parseDay,
   parseVolume,
+  setUserPassword,
 } from './admin/admin.js';
 import { PgService } from './db/pg.service.js';
 import { migrateEvents } from './db/events-migrations.js';
@@ -19,7 +22,14 @@ const USAGE = `uso: node dist/cli.js <comando> [opções]
   license:create --tenant <id> --max-agents <n> --max-volume <2TB> --valid-until <AAAA-MM-DD>
                  [--valid-from <AAAA-MM-DD>] [--plan <nome>] [--retention-days <n>] [--grace-days <n>]
   token:create --tenant <id> [--ttl-hours 24] [--max-uses 1] [--description <texto>]
-  agent:disable --agent <id>`;
+  agent:disable --agent <id>
+  user:create --email <e-mail> --name <nome> --role <perfil> [--tenant <id>] [--password <senha>]
+              perfis: msp_admin, msp_operator (Tech Master, sem --tenant),
+                      tenant_admin, tenant_auditor (cliente, com --tenant)
+              sem --password, gera uma senha e mostra uma única vez
+  user:password --email <e-mail> [--password <senha>]
+  admin:bootstrap                      cria o primeiro administrador, se não houver nenhum,
+                                       com BOOTSTRAP_ADMIN_EMAIL e BOOTSTRAP_ADMIN_PASSWORD`;
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -37,6 +47,9 @@ const { positionals, values } = parseArgs({
     'ttl-hours': { type: 'string' },
     'max-uses': { type: 'string' },
     description: { type: 'string' },
+    email: { type: 'string' },
+    role: { type: 'string' },
+    password: { type: 'string' },
   },
 });
 
@@ -88,6 +101,29 @@ async function main() {
             description: values.description,
           }),
         );
+      case 'user:create':
+        return print(
+          await createUser(db, {
+            email: need('email'),
+            name: need('name'),
+            role: need('role'),
+            tenantId: values.tenant,
+            password: values.password,
+          }),
+        );
+      case 'admin:bootstrap': {
+        const email = process.env.BOOTSTRAP_ADMIN_EMAIL;
+        const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+        if (!email || !password) {
+          console.log('admin:bootstrap: BOOTSTRAP_ADMIN_EMAIL/PASSWORD não definidos; nada a fazer');
+          return;
+        }
+        const r = await bootstrapAdmin(db, email, password);
+        console.log(r.created ? `administrador ${r.email} criado` : 'já existe administrador; nada a fazer');
+        return;
+      }
+      case 'user:password':
+        return print(await setUserPassword(db, need('email'), values.password));
       case 'agent:disable':
         return print(await disableAgent(db, need('agent')));
       default:

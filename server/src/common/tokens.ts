@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 // Tokens de alta entropia: SHA-256 basta para o hash guardado no banco.
-export function generateToken(prefix: 'ta_enr' | 'ta_agt'): string {
+export function generateToken(prefix: 'ta_enr' | 'ta_agt' | 'ta_ses'): string {
   return `${prefix}_${randomBytes(32).toString('base64url')}`;
 }
 

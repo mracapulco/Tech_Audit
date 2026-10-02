@@ -50,6 +50,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - run: npm test
       - run: npm run build
 
   agent:
@@ -67,3 +68,10 @@ jobs:
       - run: go test ./...
       - run: GOOS=windows go build ./...
       - run: go build ./...
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose build

@@ -2,7 +2,7 @@
   "name": "@tech-audit/server",
   "version": "0.1.0",
   "private": true,
-  "description": "Tech Audit central server (API + ingest\u00e3o dos agentes)",
+  "description": "Tech Audit central server (API + ingestão dos agentes)",
   "scripts": {
     "build": "nest build",
     "start": "node --env-file-if-exists=.env dist/main.js",
@@ -18,9 +18,12 @@
     "@nestjs/common": "^12.1.2",
     "@nestjs/core": "^12.1.2",
     "@nestjs/platform-express": "^12.1.2",
+    "@node-rs/argon2": "^2.2.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "dotenv": "^18.0.5",
     "pg": "^8.23.1",
+    "prisma": "^7.10.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
@@ -29,8 +32,6 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.4",
     "@types/pg": "^8.23.1",
-    "dotenv": "^18.0.5",
-    "prisma": "^7.10.0",
     "typescript": "^6.0.3"
   },
   "type": "module",
