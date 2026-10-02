@@ -2,8 +2,10 @@ package event
 
 import (
 	"encoding/json"
+	"hash/fnv"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -136,10 +138,11 @@ type pending struct {
 	// Somente delete: o 4660 confirmou a exclusão do objeto.
 	Deleted bool `json:"deleted,omitempty"`
 	// Somente bulk: itens individuais enquanto não passam do limite.
-	Items   []Event  `json:"items,omitempty"`
-	Total   int      `json:"total,omitempty"`
-	Samples []string `json:"samples,omitempty"`
-	Root    string   `json:"root,omitempty"`
+	Items   []Event         `json:"items,omitempty"`
+	Total   int             `json:"total,omitempty"`
+	Samples []string        `json:"samples,omitempty"`
+	Root    string          `json:"root,omitempty"`
+	Seen    map[string]bool `json:"seen,omitempty"` // hash dos caminhos já contados
 }
 
 // NewCorrelator cria um Correlator. fs pode ser nil (sem consultas ao disco:
@@ -641,20 +644,26 @@ func (c *Correlator) bulk(ev Event, out *[]Event) {
 	}
 	p.Deadline = ev.Time.Add(c.cfg.BulkGap)
 
-	// O 4670 vem logo depois do 4663 WRITE_DAC do mesmo handle: junta os dois.
-	if ev.EventID == IDPermsChanged {
-		hk := handleKey(ev)
+	// Cada item conta uma vez: o 4670 vem logo depois do 4663 WRITE_DAC do
+	// mesmo handle, e alterar a DACL de uma pasta faz o Windows regravar a
+	// dos itens abaixo dela (herança), antes de o icacls /T chegar neles.
+	h := pathHash(ev.Path)
+	if p.Seen[h] {
 		for i := range p.Items {
 			it := &p.Items[i]
-			if it.EventID == IDObjectAccess && handleKey(*it) == hk && strings.EqualFold(it.Path, ev.Path) {
+			if strings.EqualFold(it.Path, ev.Path) {
 				it.Details = mergeDetails(it.Details, ev.Details)
 				it.RelatedRecords = append(it.RelatedRecords, ev.RecordID)
-				return
+				break
 			}
 		}
-		if p.Total > 0 && p.Event.EventID == IDObjectAccess && len(p.Items) == 0 {
-			return // já agregado: o 4663 correspondente foi contado
-		}
+		return
+	}
+	if p.Seen == nil {
+		p.Seen = map[string]bool{}
+	}
+	if len(p.Seen) < maxBulkSeen {
+		p.Seen[h] = true
 	}
 	p.Total++
 	if len(p.Samples) < maxBulkSample {
@@ -673,6 +682,16 @@ func (c *Correlator) bulk(ev Event, out *[]Event) {
 	} else {
 		p.Items = nil // passou do limite: guarda só contagem e amostras
 	}
+}
+
+// maxBulkSeen limita a memória da contagem de itens distintos; acima disso
+// um item repetido pode ser contado duas vezes.
+const maxBulkSeen = 50000
+
+func pathHash(p string) string {
+	h := fnv.New64a()
+	h.Write([]byte(strings.ToLower(p)))
+	return strconv.FormatUint(h.Sum64(), 36)
 }
 
 func (c *Correlator) resolveBulk(p *pending, out *[]Event) {

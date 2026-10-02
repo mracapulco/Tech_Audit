@@ -264,12 +264,41 @@ func TestBulkPermissionChange(t *testing.T) {
 	for i := range 25 {
 		ev := raw(IDObjectAccess, time.Duration(i)*100*time.Millisecond, fmt.Sprintf(`D:\Dados\Fin\%02d\f.txt`, i), "0x40000", fmt.Sprintf("0x%x", 0x500+i))
 		ev.Process, ev.ProcessID = `C:\Windows\System32\icacls.exe`, "0x200"
-		r.add(ev)
+		// Cada item gera 4663 WRITE_DAC + 4670 no mesmo handle: conta uma vez.
+		b := raw(IDPermsChanged, ev.Time.Sub(t0)+time.Millisecond, ev.Path, "", ev.HandleID)
+		b.Process, b.ProcessID = ev.Process, ev.ProcessID
+		b.Kind, b.Actions = "permissions_changed", []string{"permission_change"}
+		r.add(ev, b)
 	}
 	ev := one(t, r.flush())
 	if ev.Action != ActionPermissionChanged || ev.Count != 25 || ev.Path != `D:\Dados\Fin` ||
 		strings.Count(ev.Details["sample"], "\n") != maxBulkSample-1 {
 		t.Errorf("permissão em massa: %+v", ev)
+	}
+
+	// icacls /T numa pasta com 12 arquivos, como no Windows 11: a DACL da
+	// pasta é regravada nos filhos (herança) e depois o /T passa em cada um.
+	r = newRun(t, nil)
+	n := 0
+	perm := func(path string) {
+		n++
+		a := raw(IDObjectAccess, time.Duration(n)*10*time.Millisecond, path, "0x40000", fmt.Sprintf("0x%x", 0x900+n))
+		b := raw(IDPermsChanged, time.Duration(n)*10*time.Millisecond+time.Millisecond, path, "", a.HandleID)
+		b.Kind, b.Actions = "permissions_changed", []string{"permission_change"}
+		for _, e := range []*Event{&a, &b} {
+			e.Process, e.ProcessID = `C:\Windows\System32\icacls.exe`, "0x300"
+		}
+		r.add(a, b)
+	}
+	perm(`C:\T\Lote`)
+	for i := 1; i <= 12; i++ {
+		perm(fmt.Sprintf(`C:\T\Lote\arq%d.txt`, i))
+	}
+	for i := 1; i <= 12; i++ {
+		perm(fmt.Sprintf(`C:\T\Lote\arq%d.txt`, i))
+	}
+	if ev := one(t, r.flush()); ev.Count != 13 || ev.Path != `C:\T\Lote` {
+		t.Errorf("icacls /T: %+v", ev)
 	}
 
 	// Poucos itens: cada um à parte, com o SDDL do 4670 do mesmo handle.
