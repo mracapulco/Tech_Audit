@@ -225,7 +225,7 @@ Relacional (gerenciado pelo Prisma):
 - `paths` (dicionário de caminhos: `id`, `tenant_id`, `agent_id`, `path_hash`, `path`, `parent_id`), para não repetir strings longas em cada evento
 - `audited_paths` (caminhos auditados por agente, com opções e status; seção 4.6)
 - `audit_config_changes` (log imutável de alterações de auditoria aplicadas pelo agente; seção 4.6)
-- `licenses`, `license_activations`, `installer_downloads` (licenciamento e distribuição; seção 9)
+- `licenses`, `license_activations`, `license_usage`, `installer_downloads` (licenciamento e distribuição; seção 9)
 - `report_definitions`, `report_runs`, `alert_rules`, `alerts`
 - `portal_audit_log` (quem consultou o quê no portal; o auditor também é auditado)
 
@@ -302,24 +302,25 @@ Como o servidor central roda na Tech Master, **o servidor é o ponto de controle
 
 ### 9.2 Licença
 
-Cada tenant tem uma ou mais licenças (`licenses`), criadas apenas por `msp_admin`:
+Cada tenant tem uma ou mais licenças (`licenses`), criadas apenas por `msp_admin`. **Decisão:** o licenciamento é baseado em **número de servidores** e **volume de dados**.
 
 | Campo | Exemplo |
 |---|---|
 | Plano | Essencial / Profissional / Enterprise |
 | Limite de servidores (agentes ativos) | 3 |
-| Limite de usuários monitorados (opcional, se a cobrança for por usuário) | 200 |
+| Volume de dados contratado (armazenamento ocupado pelo tenant, após compressão) | 50 GB |
 | Retenção de dados | 365 dias |
 | Módulos | relatórios agendados, alertas, inventário de ACL |
 | Validade | 2026-10-01 a 2027-09-30 |
-| Período de tolerância após o vencimento | 15 dias |
+| Período de tolerância após o vencimento | 1 dia |
 
 Regras:
 
 - **Registro de agente**: `POST /v1/enroll` só é aceito se o tenant tiver licença vigente e vaga disponível. Cada agente registrado ocupa uma vaga (`license_activations`, com `agent_id`, hostname, `machine_id` e data). Desativar um agente no portal libera a vaga.
 - **Identificação da máquina**: o agente envia um `machine_id` estável (ex.: `MachineGuid` do Windows combinado com o UUID do SMBIOS, em hash). Um mesmo agente reinstalado na mesma máquina reaproveita a vaga; um certificado copiado para outra máquina é detectado e bloqueado.
-- **Vencimento**: durante a tolerância, tudo funciona e o portal exibe aviso. Depois dela, o servidor deixa de aceitar eventos (o agente continua armazenando em buffer, dentro do limite) e o portal fica somente leitura. **Os dados não são apagados** no vencimento; a exclusão segue o contrato e a LGPD. Renovar a licença retoma a ingestão, e o agente envia o que estava no buffer.
-- **Uso medido**: o servidor registra mensalmente agentes ativos, usuários distintos observados e volume de eventos por tenant, base para faturamento e para detectar uso acima do contratado.
+- **Volume de dados**: o servidor calcula diariamente o espaço ocupado por tenant (tamanho dos chunks do TimescaleDB por `tenant_id` mais relatórios no MinIO). Aos 80% o portal e o e-mail avisam o cliente e a Tech Master; aos 100% gera alerta de excedente para upgrade ou cobrança adicional. A ingestão **não é bloqueada** por volume, para não abrir buracos na trilha de auditoria; o bloqueio acontece só por vencimento da licença.
+- **Vencimento**: a tolerância é de **1 dia**. O portal avisa com antecedência (30, 7 e 1 dia antes) por banner e e-mail. Durante a tolerância, tudo funciona e o portal exibe aviso. Depois dela, o servidor deixa de aceitar eventos (o agente continua armazenando em buffer, dentro do limite) e o portal fica somente leitura. **Os dados não são apagados** no vencimento; a exclusão segue o contrato e a LGPD. Renovar a licença retoma a ingestão, e o agente envia o que estava no buffer.
+- **Uso medido**: o servidor registra diariamente agentes ativos, volume armazenado e eventos recebidos por tenant (`license_usage`), base para faturamento e para detectar uso acima do contratado.
 
 ### 9.3 Distribuição do instalador
 
@@ -384,14 +385,12 @@ Ferramentas: pnpm workspaces + Turborepo para a parte TypeScript; `go` modules n
 1. **Caminhos auditados**: definidos pelo portal web; cliente e Tech Master podem adicionar e remover caminhos a qualquer momento. Auditoria de leitura é opção por caminho, desligada por padrão (seção 4.6).
 2. **Configuração da auditoria no cliente**: o agente aplica a política e as SACLs sozinho, com aviso antes, alerta depois e log imutável de todas as alterações (seção 4.6).
 3. **Tech_Hub**: o Tech Audit é um produto independente, sem login ou tenants compartilhados (seção 6.2).
-4. **Licenciamento**: controle de distribuição e licença por tenant, aplicados no servidor (seção 9).
+4. **Licenciamento**: controle de distribuição e licença por tenant, aplicados no servidor, com limite por **número de servidores** e **volume de dados** e **1 dia** de tolerância após o vencimento (seção 9).
 
 ### Em aberto
 
-1. **Métrica de cobrança**: por servidor, por usuário monitorado, por volume de eventos, ou combinação?
-2. **Tolerância após vencimento** da licença: 15 dias está bom?
-3. **Autenticação do agente no protótipo**: começar direto com mTLS ou com token de longa duração e migrar na fase 5?
-4. **Retenção padrão** por plano (90 dias / 1 ano / 5 anos?).
-5. **Hospedagem**: servidor físico/VM na Tech Master ou nuvem? Afeta backup e escalabilidade.
-6. **Versão on-premises** do servidor: existe demanda? Se sim, entra a licença por arquivo assinado (seção 9.4).
-7. **Domínio** do portal e da API dos agentes (ex.: `audit.techmaster.com.br` e `ingest.audit.techmaster.com.br`).
+1. **Autenticação do agente no protótipo**: começar direto com mTLS ou com token de longa duração e migrar na fase 5?
+2. **Retenção padrão** por plano (90 dias / 1 ano / 5 anos?).
+3. **Hospedagem**: servidor físico/VM na Tech Master ou nuvem? Afeta backup e escalabilidade.
+4. **Versão on-premises** do servidor: existe demanda? Se sim, entra a licença por arquivo assinado (seção 9.4).
+5. **Domínio** do portal e da API dos agentes (ex.: `audit.techmaster.com.br` e `ingest.audit.techmaster.com.br`).
