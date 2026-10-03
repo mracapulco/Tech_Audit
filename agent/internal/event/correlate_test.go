@@ -435,3 +435,35 @@ func TestSplitStream(t *testing.T) {
 		}
 	}
 }
+
+// Eventos do Linux já chegam com a ação: só se juntam repetições e
+// permissões definidas ao criar.
+func TestLogicalEvents(t *testing.T) {
+	ev := func(at time.Duration, action, itemType, path string) Event {
+		return Event{Kind: "auditd", Time: t0.Add(at), Computer: "srv", User: User{Name: "alice", Domain: "SRV"},
+			ProcessID: "42", Path: path, ItemType: itemType, Action: action, Outcome: "success"}
+	}
+	r := newRun(t, nil)
+	r.add(
+		ev(0, ActionCreated, "folder", "/dados/nova"),
+		ev(100*time.Millisecond, ActionPermissionChanged, "folder", "/dados/nova"),
+		ev(200*time.Millisecond, ActionCreated, "file", "/dados/nova/a.txt"),
+		ev(300*time.Millisecond, ActionModified, "file", "/dados/nova/a.txt"),
+		ev(400*time.Millisecond, ActionDeleted, "file", "/dados/velho.txt"),
+		ev(500*time.Millisecond, ActionPermissionChanged, "file", "/dados/outro.txt"),
+	)
+	out := r.flush()
+	var got []string
+	for _, e := range out {
+		got = append(got, fmt.Sprintf("%s %s %s %d %s", e.Action, e.ItemType, e.Path, e.Count, e.Details["permissions_set_on_create"]))
+	}
+	want := []string{
+		"deleted file /dados/velho.txt 1 ",
+		"created folder /dados/nova 1 true",
+		"created file /dados/nova/a.txt 2 ",
+		"permission_changed file /dados/outro.txt 1 ",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("eventos:\n%s", strings.Join(got, "\n"))
+	}
+}

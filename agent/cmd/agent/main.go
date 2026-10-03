@@ -1,10 +1,11 @@
-// Comando agent (distribuído como techaudit-agent.exe) lê eventos de auditoria de acesso a arquivos do
-// Security Event Log do Windows, transforma em ações (criou, alterou, excluiu, renomeou...) e envia ao
-// servidor Tech Audit. Roda como serviço do Windows (TechAuditAgent) ou no console para testes.
+// Comando agent (techaudit-agent.exe no Windows, techaudit-agent no Linux) lê a auditoria de acesso a
+// arquivos, transforma em ações (criou, alterou, excluiu, renomeou...) e envia ao servidor Tech Audit.
+// No Windows lê o Security Event Log e roda como serviço (TechAuditAgent); no Linux lê o auditd e o
+// full_audit do Samba e roda como serviço do systemd (techaudit-agent). Também roda no console para testes.
 //
-//	techaudit-agent.exe install -endpoint URL -enrollment-token TOKEN   instala e inicia o serviço
-//	techaudit-agent.exe uninstall                                        remove o serviço (mantém os dados)
-//	techaudit-agent.exe [-config arquivo] [-stdout] [-replay export.xml] roda no console
+//	techaudit-agent install -endpoint URL -enrollment-token TOKEN   instala e inicia o serviço
+//	techaudit-agent uninstall                                        remove o serviço (mantém os dados)
+//	techaudit-agent [-config arquivo] [-stdout] [-replay export.xml] roda no console
 package main
 
 import (
@@ -136,10 +137,31 @@ func run(ctx context.Context, o options) error {
 		}
 	}
 
+	hostname, _ := os.Hostname()
 	var src source.Source
-	if o.replay != "" {
+	var decode func([]byte) (event.Event, bool, error)
+	switch {
+	case o.replay != "":
 		src, err = source.OpenFile(o.replay)
-	} else {
+	case runtime.GOOS == "linux":
+		var bm []byte
+		if bm, err = st.Get(pipeline.KeyBookmark); err != nil {
+			return err
+		}
+		src, err = source.OpenLinux(source.LinuxOptions{
+			Bookmark: string(bm), StartFrom: cfg.StartFrom, Hostname: hostname, Logf: log.Printf,
+			Scope: func(path string, read bool) bool { return auditExclusions.Load().InScope(path, read) },
+			Roots: func() ([]string, bool) {
+				roots, known := auditExclusions.Load().Roots()
+				paths := make([]string, len(roots))
+				for i, r := range roots {
+					paths[i] = r.Path
+				}
+				return paths, known
+			},
+		})
+		decode = source.DecodeJSON
+	default:
 		var bm []byte
 		if bm, err = st.Get(pipeline.KeyBookmark); err != nil {
 			return err
@@ -154,7 +176,6 @@ func run(ctx context.Context, o options) error {
 	}
 	defer src.Close()
 
-	hostname, _ := os.Hostname()
 	var send func(context.Context, *event.Batch) error
 	var heartbeat func(context.Context, pipeline.Status) error
 	if o.stdout {
@@ -187,7 +208,8 @@ func run(ctx context.Context, o options) error {
 	log.Printf("techaudit-agent %s iniciado (computador=%s, endpoint=%s, %d eventos no buffer)", version, cfg.AgentID, cfg.Endpoint, n)
 	p := &pipeline.Pipeline{
 		Source: src, Store: st, Correlator: corr, Filter: cfg.Filter, Send: send, Heartbeat: heartbeat,
-		Exclude: func(path string) bool { return auditExclusions.Excluded(path) },
+		Exclude: func(path string) bool { return auditExclusions.Load().Excluded(path) },
+		Decode:  decode,
 		AgentID: cfg.AgentID, Hostname: hostname, Version: version,
 		BatchSize: cfg.BatchSize, FlushInterval: cfg.FlushInterval.Duration,
 		Logf: log.Printf,

@@ -114,6 +114,7 @@ func Load(path string) (*Config, error) {
 	if err := json.Unmarshal(b, c); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	rememberPath(path)
 	return c, c.applyDefaults()
 }
 
@@ -152,6 +153,7 @@ func (c *Config) applyDefaults() error {
 	if c.MaxBufferMB <= 0 {
 		c.MaxBufferMB = 1024
 	}
+	platformDefaults(c)
 	switch c.StartFrom {
 	case "":
 		c.StartFrom = "now"
