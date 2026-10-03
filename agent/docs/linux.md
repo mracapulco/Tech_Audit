@@ -5,10 +5,11 @@ O mesmo agente roda em servidores de arquivos Linux de 64 bits (x86-64):
 | Família | Versões | Pacote |
 |---|---|---|
 | Ubuntu / Debian | Ubuntu 20.04, 22.04 e 24.04; Debian 11 e 12 | `.deb` |
-| CentOS / Oracle Linux / Red Hat / Rocky / Alma | 7, 8 e 9 | `.rpm` |
+| CentOS Stream / Oracle Linux / Red Hat / Rocky / Alma | 8 e 9 | `.rpm` |
 
-O binário é estático (sem dependência da glibc), então o mesmo arquivo roda do
-CentOS 7 ao Ubuntu 24.04. A coleta completa (auditd + Samba 4.19) foi testada
+Só versões com suporte do fabricante. O CentOS 7 (sem suporte desde 2024)
+não é suportado oficialmente, mas o pacote instala nele: o binário é estático
+(sem dependência da glibc). A coleta completa (auditd + Samba 4.19) foi testada
 no Ubuntu 24.04; a instalação e remoção dos pacotes, no Debian 12, Ubuntu
 20.04, Oracle Linux 9 e CentOS 7.
 

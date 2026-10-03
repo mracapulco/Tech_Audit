@@ -17,7 +17,7 @@ windows:
 msi: windows
 	sh installer/build-msi.sh $(VERSION) dist/techaudit-agent.exe dist/TechAuditAgent-$(VERSION).msi
 
-# Linux: binário estático (sem cgo), roda do CentOS 7 ao Ubuntu 24.04.
+# Linux: binário estático (sem cgo), roda em qualquer distribuição de 64 bits.
 # ARCH=amd64 (padrão) ou arm64.
 ARCH ?= amd64
 NFPM ?= go run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.42.1
