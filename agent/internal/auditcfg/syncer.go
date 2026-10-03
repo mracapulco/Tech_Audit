@@ -3,6 +3,7 @@ package auditcfg
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,9 +15,12 @@ import (
 // aplica, informa o servidor, registra tudo no log local e mede as pastas.
 type Syncer struct {
 	Client *Client
-	Sys    System
-	Opts   Options
-	Log    *ChangeLog
+	// Sys aplica SACL e política (Windows); Linux, quando informado, aplica
+	// regras do auditd e o full_audit do Samba no lugar dele.
+	Sys   System
+	Linux LinuxSystem
+	Opts  Options
+	Log   *ChangeLog
 	// Notify avisa o administrador local (log Application do Windows).
 	// warning é true para erros e divergências.
 	Notify func(warning bool, msg string)
@@ -102,8 +106,15 @@ func (s *Syncer) Once(ctx context.Context) error {
 	s.Exclusions.set(cfg.Paths)
 
 	verifyDue := s.now().Sub(s.lastVerify) >= s.Opts.VerifyInterval.Duration
-	a := &applier{sys: s.Sys, state: s.state, now: s.now}
-	results := a.sync(cfg, verifyDue)
+	var results []Result
+	var policyLog []ChangeEntry
+	if s.Linux != nil {
+		a := &linuxApplier{sys: s.Linux, state: s.state, now: s.now}
+		results, policyLog = a.sync(cfg, verifyDue), a.log
+	} else {
+		a := &applier{sys: s.Sys, state: s.state, now: s.now}
+		results, policyLog = a.sync(cfg, verifyDue), a.policyLog
+	}
 	if verifyDue {
 		s.lastVerify = s.now()
 	}
@@ -111,7 +122,7 @@ func (s *Syncer) Once(ctx context.Context) error {
 		s.Logf("salvando o estado da configuração: %v", err)
 	}
 
-	for _, e := range a.policyLog {
+	for _, e := range policyLog {
 		e.Version = cfg.Version
 		s.record(e)
 	}
@@ -197,6 +208,8 @@ func stateText(st *AuditState, withSACL bool) string {
 	}
 	parts := ""
 	switch sacl, _ := sddl.Parse(st.SACL); {
+	case st.SACL != "" && !strings.HasPrefix(st.SACL, "S:"):
+		parts = strings.ReplaceAll(st.SACL, "\n", "; ") // Linux: regras do auditd e bloco do Samba
 	case st.SACL != "" && len(sacl.ACEs) > 0:
 		parts = "SACL " + st.SACL
 	case withSACL:

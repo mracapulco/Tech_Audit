@@ -182,3 +182,12 @@ func emptyACL() *windows.ACL {
 	b[2] = 8 // AclSize (little endian)
 	return (*windows.ACL)(unsafe.Pointer(&b[0]))
 }
+
+// NewPlatformSyncer cria o Syncer do Windows: SACL das pastas e política de auditoria.
+func NewPlatformSyncer(client *Client, opts Options) (*Syncer, error) {
+	sys, err := NewSystem()
+	if err != nil {
+		return nil, err
+	}
+	return NewSyncer(client, sys, opts)
+}

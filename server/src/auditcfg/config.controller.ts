@@ -3,7 +3,7 @@ import { PortalAuthGuard, type PortalRequest } from '../auth/portal-auth.guard.j
 import { asBody, bool } from '../admin/input.js';
 import { AuditLogService } from '../portal/audit-log.service.js';
 import { AuditConfigService, type PathOptions } from './audit-config.service.js';
-import { normalizePath, parseExclusions, PathError } from './paths.js';
+import { parseExclusions, PathError } from './paths.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -76,14 +76,8 @@ export class ConfigController {
   async add(@Req() req: PortalRequest, @Param('agentId', ParseUUIDPipe) agentId: string, @Body() body: unknown) {
     const b = asBody(body);
     requireConfirm(b);
-    let path: string;
-    try {
-      path = normalizePath(b.path);
-    } catch (err) {
-      if (err instanceof PathError) throw new BadRequestException(err.message);
-      throw err;
-    }
-    const p = await this.config.addPath(this.requester(req), agentId, path, options(b), bool(b, 'override_volume') === true);
+    // O caminho é validado no serviço, conforme o sistema do servidor (Windows ou Linux).
+    const p = await this.config.addPath(this.requester(req), agentId, b.path, options(b), bool(b, 'override_volume') === true);
     await this.log(req, 'config.path.add', p.tenant_id, { path: p.path, agent: agentId });
     return p;
   }

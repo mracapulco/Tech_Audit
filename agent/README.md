@@ -1,4 +1,7 @@
-# Tech Audit — agente Windows
+# Tech Audit — agente
+
+> Servidores Linux (Ubuntu/Debian e CentOS/Oracle/Red Hat): veja
+> [docs/linux.md](docs/linux.md). O restante deste arquivo descreve o Windows.
 
 Agente em Go que lê o log **Security** do Windows, transforma os eventos de
 auditoria de acesso a arquivos em **ações claras** (criou, alterou, excluiu,
@@ -201,6 +204,7 @@ cd agent
 make test      # vet (Linux e Windows) + testes
 make windows   # dist/techaudit-agent.exe
 make msi       # dist/TechAuditAgent-<versão>.msi (requer wixl e msitools)
+make packages  # dist/techaudit-agent_<versão>-1_amd64.deb e .rpm (Linux; ARCH=arm64 para ARM)
 ```
 
 A versão fica em `VERSION`. As telas do assistente estão em
@@ -210,7 +214,7 @@ para download no portal. O campo "Endereço do servidor" começa vazio de
 propósito: o endereço muda entre homologação e produção.
 
 O CI gera o `.exe` e o `.msi` a cada push (artefato
-`techaudit-agent-windows`). Ainda **não são assinados**: o Windows mostra o
+`techaudit-agent-windows`) e os pacotes Linux (artefato `techaudit-agent-linux`). Ainda **não são assinados**: o Windows mostra o
 aviso do SmartScreen até termos o certificado de code signing da Tech Master
 (depois, `signtool sign` no `.exe` antes do `make msi` e no `.msi`).
 

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { FormResult } from '@/components/action-form';
-import { agentServerUrl, silentInstallCommand } from '@/lib/agent';
+import { agentServerUrl, linuxRegisterCommand, silentInstallCommand } from '@/lib/agent';
 import { apiFetch, apiSend, sessionToken, type ActionResult } from '@/lib/api';
 import { agentConfig } from '@/lib/format';
 
@@ -59,6 +59,7 @@ export async function createToken(tenantId: string, _: FormResult | undefined, f
       value: r.data.token,
       server: AGENT_URL,
       command: silentInstallCommand(await installerName(), AGENT_URL, r.data.token),
+      linuxCommand: linuxRegisterCommand(AGENT_URL, r.data.token),
       config: agentConfig(AGENT_URL, r.data.token),
     },
   };

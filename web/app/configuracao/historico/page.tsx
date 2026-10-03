@@ -58,7 +58,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
         </p>
         <h1>Histórico de alterações</h1>
         <p className="muted small">
-          Registro permanente: pedidos feitos no portal e o que o agente aplicou em cada servidor, com a SACL e a política de auditoria antes e
+          Registro permanente: pedidos feitos no portal e o que o agente aplicou em cada servidor, com a configuração de auditoria (SACL no Windows; auditd e Samba no Linux) antes e
           depois. Não pode ser editado nem apagado.
         </p>
         {error && <p className="error">{error}</p>}

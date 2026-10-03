@@ -1,16 +1,15 @@
-//go:build !windows
+//go:build !windows && !linux
 
 package auditcfg
 
 import "errors"
 
-// NewSystem só existe no Windows por enquanto; no Linux a auditoria será
-// configurada de outro jeito (Samba full_audit / auditd, seção 4.3).
-func NewSystem() (System, error) {
-	return nil, errors.New("aplicação de auditoria disponível só no Windows")
-}
-
-// NewNotifier fora do Windows só usa o log do agente.
+// NewNotifier aqui só usa o log do agente.
 func NewNotifier(logf func(string, ...any)) func(warning bool, msg string) {
 	return func(bool, string) {}
+}
+
+// NewPlatformSyncer só existe no Windows e no Linux.
+func NewPlatformSyncer(*Client, Options) (*Syncer, error) {
+	return nil, errors.New("aplicação de auditoria disponível só no Windows e no Linux")
 }

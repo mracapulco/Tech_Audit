@@ -12,3 +12,13 @@ export const agentServerUrl = (url: string) => url.trim().replace(/\/+$/, '');
 export function silentInstallCommand(fileName: string, serverUrl: string, token = 'ta_enr_...'): string {
   return `msiexec /i ${fileName} /qn ENDPOINT="${agentServerUrl(serverUrl)}" ENROLLMENT_TOKEN="${token}"`;
 }
+
+// Linux: registra o servidor depois de instalar o pacote .deb ou .rpm.
+export function linuxRegisterCommand(serverUrl: string, token = 'ta_enr_...'): string {
+  return `sudo techaudit-agent install -endpoint ${agentServerUrl(serverUrl)} -enrollment-token '${token}'`;
+}
+
+// Instala o pacote baixado, com as dependências (auditd) vindas do repositório da distribuição.
+export function linuxPackageCommand(kind: 'deb' | 'rpm', fileName: string): string {
+  return kind === 'deb' ? `sudo apt install ./${fileName}` : `sudo yum install ./${fileName}`;
+}

@@ -190,6 +190,8 @@ details.edit[open] { flex-basis: 100%; }
 /* Instalar agente */
 .steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
 .steps .secret-row { margin-top: 6px; }
+.download-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.download-list p { margin: 0; }
 details.section summary { cursor: pointer; font-weight: 600; }
 
 /* Marca e tela de login */
