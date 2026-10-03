@@ -3,19 +3,24 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CopyField } from '@/components/copy-field';
 import { TopBar } from '@/components/top-bar';
-import { agentServerUrl, canDownloadAgent, silentInstallCommand } from '@/lib/agent';
+import { agentServerUrl, canDownloadAgent, linuxPackageCommand, linuxRegisterCommand, silentInstallCommand } from '@/lib/agent';
 import { apiGet, type CurrentUser } from '@/lib/api';
 import { formatBytes, formatDateTimeShort } from '@/lib/format';
 
 export const metadata: Metadata = { title: 'Instalar agente · Tech Audit' };
 
-interface Installer {
+interface Package {
+  file_name: string;
+  version: string;
+  size: number;
+  sha256: string;
+  built_at: string;
+}
+
+interface Installer extends Partial<Package> {
   available: boolean;
-  file_name?: string;
-  version?: string;
-  size?: number;
-  sha256?: string;
-  built_at?: string;
+  // Ausente em servidores com a API anterior aos pacotes Linux.
+  linux?: { deb: Package | null; rpm: Package | null };
 }
 
 const SERVER_URL = agentServerUrl(process.env.PUBLIC_AGENT_URL ?? process.env.API_URL ?? 'http://localhost:3001');
@@ -32,12 +37,12 @@ export default async function AgentPage() {
       <main className="page">
         <h1>Instalar agente</h1>
         <p className="muted">
-          O agente é instalado em cada servidor de arquivos Windows. Ele roda como serviço, lê a auditoria de acesso a arquivos e envia para o
-          Tech Audit.
+          O agente é instalado em cada servidor de arquivos, Windows ou Linux. Ele roda como serviço, lê a auditoria de acesso a arquivos e envia
+          para o Tech Audit. Veja abaixo o <a href="#linux">passo a passo para Linux</a>.
         </p>
 
         <section className="section">
-          <h2>1. Baixe o instalador</h2>
+          <h2>1. Baixe o instalador (Windows)</h2>
           {inst.available ? (
             <div className="card">
               <p>
@@ -69,7 +74,7 @@ export default async function AgentPage() {
         </section>
 
         <section className="section">
-          <h2>3. Execute no servidor de arquivos</h2>
+          <h2>3. Execute no servidor de arquivos Windows</h2>
           <div className="card">
             <ol className="steps">
               <li>Copie o instalador para o servidor e abra com duplo clique (é preciso ser administrador).</li>
@@ -93,7 +98,59 @@ export default async function AgentPage() {
             <CopyField value={silentInstallCommand(inst.file_name ?? 'TechAuditAgent.msi', SERVER_URL)} />
           </details>
         )}
+
+        <section className="section" id="linux">
+          <h2>Servidor Linux</h2>
+          <p className="muted">
+            Ubuntu, Debian, CentOS, Oracle Linux, Red Hat, Rocky e Alma (64 bits). O agente registra o acesso direto ao servidor (auditd) e o acesso
+            pela rede aos compartilhamentos Samba, com o IP do computador de quem acessou.
+          </p>
+          <div className="card">
+            <ol className="steps">
+              <li>
+                Baixe o pacote da sua distribuição e copie para o servidor:
+                <div className="download-list">
+                  <LinuxPackage kind="deb" label="Ubuntu / Debian (.deb)" pkg={inst.linux?.deb ?? null} />
+                  <LinuxPackage kind="rpm" label="CentOS / Oracle / Red Hat (.rpm)" pkg={inst.linux?.rpm ?? null} />
+                </div>
+              </li>
+              <li>
+                Instale com um usuário que tenha sudo, na pasta onde está o pacote (o auditd é instalado junto, se faltar):
+                {inst.linux?.deb && <CopyField value={linuxPackageCommand('deb', inst.linux.deb.file_name)} />}
+                {inst.linux?.rpm && <CopyField value={linuxPackageCommand('rpm', inst.linux.rpm.file_name)} />}
+              </li>
+              <li>
+                Registre o servidor, trocando o token de instalação:
+                <CopyField value={linuxRegisterCommand(SERVER_URL)} />
+              </li>
+              <li>
+                O servidor aparece no <Link href="/painel">Painel</Link>. Escolha as pastas em <Link href="/configuracao">Caminhos auditados</Link>{' '}
+                usando o caminho no servidor, por exemplo /srv/dados/financeiro.
+              </li>
+            </ol>
+          </div>
+        </section>
       </main>
     </>
+  );
+}
+
+function LinuxPackage({ kind, label, pkg }: { kind: 'deb' | 'rpm'; label: string; pkg: Package | null }) {
+  if (!pkg) return <p className="muted small">{label}: ainda não disponível neste servidor. Avise a Tech Master.</p>;
+  return (
+    <div>
+      <p>
+        <a className="button" href={`/agente/download?tipo=${kind}`} download>
+          {label}
+        </a>{' '}
+        <span className="muted small">
+          {pkg.file_name} · {formatBytes(pkg.size)}
+        </span>
+      </p>
+      <details>
+        <summary className="small">SHA-256 para conferir o arquivo</summary>
+        <CopyField value={pkg.sha256} />
+      </details>
+    </div>
   );
 }

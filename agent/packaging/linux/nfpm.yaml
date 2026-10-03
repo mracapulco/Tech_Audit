@@ -1,0 +1,50 @@
+# Pacotes .deb e .rpm do agente (make deb / make rpm). VERSION e ARCH
+# (amd64 ou arm64) vêm do Makefile.
+name: techaudit-agent
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+release: 1
+section: admin
+priority: optional
+maintainer: Tech Master <suporte@techmaster.inf.br>
+vendor: Tech Master
+homepage: https://audit.techmaster.inf.br
+license: Proprietary
+description: |
+  Agente do Tech Audit (auditoria de acesso a arquivos)
+  Registra quem criou, alterou, leu, renomeou ou
+  excluiu arquivos nas pastas auditadas (auditd e full_audit do Samba) e
+  envia ao servidor Tech Audit.
+contents:
+  - src: dist/pkg/techaudit-agent
+    dst: /usr/bin/techaudit-agent
+    file_info:
+      mode: 0755
+  - src: packaging/linux/techaudit-agent.service
+    dst: /usr/lib/systemd/system/techaudit-agent.service
+    file_info:
+      mode: 0644
+  - dst: /etc/techaudit
+    type: dir
+    file_info:
+      mode: 0755
+  - dst: /var/lib/techaudit
+    type: dir
+    file_info:
+      mode: 0700
+scripts:
+  postinstall: packaging/linux/postinstall.sh
+  preremove: packaging/linux/preremove.sh
+  postremove: packaging/linux/postremove.sh
+overrides:
+  deb:
+    depends:
+      - auditd
+  rpm:
+    depends:
+      - audit
+rpm:
+  # gzip: o rpm do CentOS 7 não abre pacotes zstd.
+  compression: gzip
+  group: Applications/System

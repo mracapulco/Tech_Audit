@@ -5,7 +5,7 @@ import { CopyField } from '@/components/copy-field';
 import type { ActionResult } from '@/lib/api';
 
 // Resultado com os dados de instalação do agente (token gerado no portal).
-export type FormResult = ActionResult & { secret?: { server?: string; command?: string } };
+export type FormResult = ActionResult & { secret?: { server?: string; command?: string; linuxCommand?: string } };
 
 // Formulário que chama uma server action e mostra o resultado no lugar:
 // erro, confirmação ou um valor que só aparece uma vez (senha, token).
@@ -66,6 +66,7 @@ function Secret({
   config,
   server,
   command,
+  linuxCommand,
   message,
 }: NonNullable<FormResult['secret']> & { message?: string }) {
   const [copied, setCopied] = useState(false);
@@ -86,6 +87,12 @@ function Secret({
         <details>
           <summary className="small">Instalação sem telas (GPO ou script)</summary>
           <CopyField value={command} />
+        </details>
+      )}
+      {linuxCommand && (
+        <details>
+          <summary className="small">Servidor Linux (depois de instalar o pacote .deb ou .rpm)</summary>
+          <CopyField value={linuxCommand} />
         </details>
       )}
       {config && (

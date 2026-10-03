@@ -5,10 +5,16 @@ export class PathError extends Error {}
 
 const MAX_PATH = 1024;
 
-// "d:/Dados//Financeiro\" -> "D:\Dados\Financeiro". Só caminhos locais do
-// servidor: o agente aplica a SACL no disco, não no compartilhamento.
-export function normalizePath(input: unknown): string {
+// Servidor Linux pelo sistema informado pelo agente no registro.
+export const isLinux = (os: string | null | undefined) => (os ?? '').toLowerCase().startsWith('linux');
+
+// Caminho local no servidor, conforme o sistema dele. Windows:
+// "d:/Dados//Financeiro\" -> "D:\Dados\Financeiro". Linux:
+// "/srv//dados/" -> "/srv/dados". O agente aplica a auditoria no disco, não
+// no compartilhamento.
+export function normalizePath(input: unknown, os?: string | null): string {
   if (typeof input !== 'string' || input.trim() === '') throw new PathError('Caminho é obrigatório');
+  if (isLinux(os)) return normalizeLinuxPath(input.trim());
   let p = input.trim().replace(/\//g, '\\');
   if (p.startsWith('\\\\')) {
     throw new PathError('Use o caminho local no servidor (ex.: D:\\Dados\\Financeiro), não o compartilhamento de rede');
@@ -29,13 +35,34 @@ export function normalizePath(input: unknown): string {
   return p;
 }
 
-// Chave de comparação: o NTFS não diferencia maiúsculas.
-export const pathKey = (normalized: string) => normalized.toLowerCase();
+// Pastas do sistema que não fazem sentido auditar (e o auditd sobrecarrega).
+const LINUX_SYSTEM = ['/proc', '/sys', '/dev', '/run', '/boot', '/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc', '/var/log', '/var/lib/techaudit', '/var/log/audit'];
+
+function normalizeLinuxPath(input: string): string {
+  if (/^[A-Za-z]:/.test(input) || input.startsWith('\\\\')) {
+    throw new PathError('Este servidor é Linux: use o caminho da pasta no servidor (ex.: /srv/dados/financeiro)');
+  }
+  if (!input.startsWith('/')) throw new PathError('Caminho deve começar com / (ex.: /srv/dados/financeiro)');
+  const parts = input.split('/').filter(Boolean);
+  if (parts.some((s) => s === '.' || s === '..')) throw new PathError('Caminho não pode conter "." ou ".."');
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f]/.test(input)) throw new PathError('Caminho contém caracteres inválidos');
+  const p = '/' + parts.join('/');
+  if (p.length > MAX_PATH) throw new PathError(`Caminho deve ter até ${MAX_PATH} caracteres`);
+  if (p === '/') throw new PathError('Escolha uma pasta de dados, não a raiz do servidor');
+  if (LINUX_SYSTEM.some((d) => p === d || p.startsWith(d + '/'))) throw new PathError(`Pasta do sistema não pode ser auditada: ${p}`);
+  return p;
+}
+
+// Chave de comparação: o NTFS não diferencia maiúsculas; no Linux (caminho
+// começando com /) a diferença conta.
+export const pathKey = (normalized: string) => (normalized.startsWith('/') ? normalized : normalized.toLowerCase());
 
 // child está dentro de parent (ou é o próprio), comparando chaves.
 export function isWithin(childKey: string, parentKey: string): boolean {
   if (childKey === parentKey) return true;
-  const prefix = parentKey.endsWith('\\') ? parentKey : parentKey + '\\';
+  const sep = parentKey.startsWith('/') ? '/' : '\\';
+  const prefix = parentKey.endsWith(sep) ? parentKey : parentKey + sep;
   return childKey.startsWith(prefix);
 }
 
