@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -91,6 +92,31 @@ export class AuthController {
   @UseGuards(PortalAuthGuard)
   me(@Req() req: PortalRequest) {
     return toJson(req.user);
+  }
+
+  // --- Minha conta: nome e senha -----------------------------------------
+
+  @Patch('me')
+  @UseGuards(PortalAuthGuard)
+  async rename(@Req() req: PortalRequest, @Body() body: unknown) {
+    const name = (body as Record<string, unknown> | null)?.name;
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 255) throw new BadRequestException('informe o nome (até 255 caracteres)');
+    const u = await this.auth.rename(req.user.id, name.trim());
+    await this.audit.record({ userId: req.user.id, tenantId: req.user.tenantId, action: 'account.rename', ip: req.ip });
+    return toJson(u);
+  }
+
+  @Post('password')
+  @HttpCode(200)
+  @UseGuards(PortalAuthGuard)
+  async changePassword(@Req() req: PortalRequest, @Body() body: unknown) {
+    const b = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+    const { current, password } = b;
+    if (typeof current !== 'string' || !current) throw new BadRequestException('informe a senha atual');
+    if (typeof password !== 'string' || !password || password.length > 200) throw new BadRequestException('informe a nova senha');
+    if (!(await this.auth.changePassword(req.user.id, req.user.sessionId, current, password))) throw new BadRequestException('senha atual incorreta');
+    await this.audit.record({ userId: req.user.id, tenantId: req.user.tenantId, action: 'account.password', ip: req.ip });
+    return { changed: true };
   }
 
   // --- Minha conta: verificação em duas etapas ---------------------------

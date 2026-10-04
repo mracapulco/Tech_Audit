@@ -1,7 +1,8 @@
+import Link from 'next/link';
 import { ActionForm } from '@/components/action-form';
 import { Drawer } from '@/components/drawer';
 import { Menu } from '@/components/menu';
-import { deleteUser, createUser, resetMfa, resetPassword, setUserDisabled } from '@/app/admin/actions';
+import { deleteUser, createUser, renameUser, resetMfa, resetPassword, setUserDisabled } from '@/app/admin/actions';
 import { formatDateTimeShort, roleLabel } from '@/lib/format';
 
 export interface UserRow {
@@ -45,7 +46,25 @@ export function UsersTable({ users, meId, empty }: { users: UserRow[]; meId: str
               <td>{u.mfa_enabled ? <span className="pill ok">Ativa</span> : <span className="pill neutral">Não</span>}</td>
               <td className="cell-menu">
                 <Menu label="⋯" ariaLabel={`Ações de ${u.email}`}>
-                  <ActionForm action={resetPassword.bind(null, u.id)} submit="Gerar nova senha" menu confirm={`Gerar uma nova senha para ${u.email}? A senha atual deixa de funcionar.`} />
+                  {u.id === meId ? (
+                    <Link className="menu-item" href="/conta">
+                      Alterar meu nome ou senha
+                    </Link>
+                  ) : (
+                    <>
+                      <Drawer trigger="Editar nome" triggerClass="menu-item" title={`Editar ${u.email}`}>
+                        <ActionForm action={renameUser.bind(null, u.id)} submit="Salvar" className="stack-form">
+                          <label>
+                            Nome
+                            <input name="name" required maxLength={255} defaultValue={u.name} />
+                          </label>
+                        </ActionForm>
+                      </Drawer>
+                      <Drawer trigger="Trocar senha" triggerClass="menu-item" title={`Trocar a senha de ${u.email}`}>
+                        <PasswordForm userId={u.id} />
+                      </Drawer>
+                    </>
+                  )}
                   {u.mfa_enabled && u.id !== meId && (
                     <ActionForm
                       action={resetMfa.bind(null, u.id)}
@@ -114,5 +133,22 @@ export function NewUser({ tenantId }: { tenantId?: string }) {
         </label>
       </ActionForm>
     </Drawer>
+  );
+}
+
+// Senha escolhida pelo administrador, ou gerada pelo portal se ficar em branco.
+function PasswordForm({ userId }: { userId: string }) {
+  return (
+    <ActionForm action={resetPassword.bind(null, userId)} submit="Trocar senha" className="stack-form" confirm="Trocar a senha? A atual deixa de funcionar e as sessões abertas são encerradas.">
+      <p className="muted small">Deixe em branco para o portal gerar uma senha forte e mostrar uma única vez.</p>
+      <label>
+        Nova senha
+        <input name="password" type="password" minLength={10} maxLength={200} autoComplete="new-password" placeholder="Mínimo de 10 caracteres" />
+      </label>
+      <label>
+        Repita a nova senha
+        <input name="confirm" type="password" minLength={10} maxLength={200} autoComplete="new-password" />
+      </label>
+    </ActionForm>
   );
 }
