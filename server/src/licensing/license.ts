@@ -12,10 +12,10 @@ export interface LicenseTerms {
 
 export type LicenseStatus = 'active' | 'grace' | 'expired' | 'none';
 
-export interface LicenseState {
+export interface LicenseState<T extends LicenseTerms = LicenseTerms> {
   status: LicenseStatus;
   // Licenças que contam agora (vigentes ou em tolerância); limites somados.
-  licenses: LicenseTerms[];
+  licenses: T[];
   maxAgents: number;
   maxVolumeBytes: bigint;
   // Maior fim de vigência e de tolerância entre as licenças que contam.
@@ -29,7 +29,7 @@ export function graceEnd(l: LicenseTerms): Date {
   return new Date(l.validUntil.getTime() + l.graceDays * DAY_MS);
 }
 
-export function evaluateLicenses(all: LicenseTerms[], now: Date): LicenseState {
+export function evaluateLicenses<T extends LicenseTerms>(all: T[], now: Date): LicenseState<T> {
   const t = now.getTime();
   const counted = all.filter(
     (l) => !l.revokedAt && l.validFrom.getTime() <= t && t < graceEnd(l).getTime(),

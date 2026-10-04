@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ActionForm } from '@/components/action-form';
+import { PlanFields } from '@/components/plan-fields';
 import { TopBar } from '@/components/top-bar';
 import { ApiError, apiGet, requireAdmin } from '@/lib/api';
 import {
@@ -61,7 +62,6 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
   }
   const s = licenseStatus(t.license.status);
   const dates = defaultLicenseDates();
-  const plans = ['Essencial', 'Profissional', 'Enterprise'];
   const licenseName = (lid: string | null) => {
     const l = t.licenses.find((x) => x.id === lid);
     return l ? `${l.plan} (${formatDate(l.valid_from)} a ${formatLastDay(l.valid_until)})` : 'licença';
@@ -140,7 +140,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
                             <div className="row-actions">
                               <details className="edit">
                                 <summary className="small-btn secondary">Editar</summary>
-                                <LicenseEditForm tenantId={t.id} license={l} plans={plans} />
+                                <LicenseEditForm tenantId={t.id} license={l} />
                               </details>
                               <ActionForm
                                 action={revokeLicense.bind(null, t.id, l.id)}
@@ -161,14 +161,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
           <div className="card">
             <h3>Nova licença</h3>
             <ActionForm action={createLicense.bind(null, t.id)} submit="Criar licença" className="grid-form">
-              <label>
-                Plano
-                <select name="plan" defaultValue="Essencial">
-                  <option>Essencial</option>
-                  <option>Profissional</option>
-                  <option>Enterprise</option>
-                </select>
-              </label>
+              <PlanFields />
               <label>
                 Servidores
                 <input name="max_agents" type="number" min={1} max={10000} defaultValue={1} required />
@@ -190,10 +183,6 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
               <label>
                 Último dia
                 <input name="valid_until" type="date" defaultValue={dates.until} required />
-              </label>
-              <label>
-                Retenção (dias)
-                <input name="retention_days" type="number" min={1} max={36500} defaultValue={365} />
               </label>
             </ActionForm>
           </div>
@@ -381,7 +370,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
 }
 
 // Edita a licença no lugar, sem revogar; vale na hora para os agentes.
-function LicenseEditForm({ tenantId, license: l, plans }: { tenantId: string; license: Detail['licenses'][number]; plans: string[] }) {
+function LicenseEditForm({ tenantId, license: l }: { tenantId: string; license: Detail['licenses'][number] }) {
   const vol = volumeInput(l.max_volume_bytes);
   return (
     <ActionForm
@@ -390,14 +379,7 @@ function LicenseEditForm({ tenantId, license: l, plans }: { tenantId: string; li
       className="stack-form"
       confirm={`Alterar a licença ${l.plan}? A mudança vale na hora para os servidores desta empresa e fica no histórico.`}
     >
-      <label>
-        Plano
-        <select name="plan" defaultValue={l.plan}>
-          {(plans.includes(l.plan) ? plans : [l.plan, ...plans]).map((p) => (
-            <option key={p}>{p}</option>
-          ))}
-        </select>
-      </label>
+      <PlanFields plan={l.plan} retentionDays={l.retention_days} />
       <label>
         Servidores
         <input name="max_agents" type="number" min={1} max={10000} defaultValue={l.max_agents} required />
@@ -419,10 +401,6 @@ function LicenseEditForm({ tenantId, license: l, plans }: { tenantId: string; li
       <label>
         Último dia
         <input name="valid_until" type="date" defaultValue={lastDayInput(l.valid_until)} required />
-      </label>
-      <label>
-        Retenção (dias)
-        <input name="retention_days" type="number" min={1} max={36500} defaultValue={l.retention_days} required />
       </label>
       <label>
         Tolerância após o vencimento (dias)

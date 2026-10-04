@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { hashPassword } from '../auth/passwords.js';
 import { isMspRole, isRole, ROLES } from '../auth/roles.js';
 import { generateToken, hashToken } from '../common/tokens.js';
+import { DEFAULT_PLAN, planFeatures } from '../licensing/plans.js';
 import type { PrismaService } from '../prisma.service.js';
 
 // Operações administrativas da Tech Master enquanto o portal não existe.
@@ -48,13 +49,14 @@ export async function createLicense(
     graceDays?: number;
   },
 ) {
+  const plan = o.plan ?? DEFAULT_PLAN;
   return db.license.create({
     data: {
       tenantId: o.tenantId,
-      plan: o.plan ?? 'Essencial',
+      plan,
       maxAgents: o.maxAgents,
       maxVolumeBytes: o.maxVolumeBytes,
-      retentionDays: o.retentionDays ?? 365,
+      retentionDays: o.retentionDays ?? planFeatures(plan).retentionDays,
       validFrom: o.validFrom,
       validUntil: o.validUntil,
       graceDays: o.graceDays ?? 1,

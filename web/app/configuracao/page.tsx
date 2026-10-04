@@ -38,6 +38,7 @@ interface AgentRow {
 interface View {
   tenant: { id: string; name: string };
   volume: { used_bytes: string; max_bytes: string; percent: number | null; level: number };
+  read_audit_allowed: boolean;
   alerts: { id: string; kind: string; severity: string; message: string; created_at: string }[];
   agents: AgentRow[];
 }
@@ -194,7 +195,7 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
                                       <details className="edit">
                                         <summary className="small-btn secondary">Editar</summary>
                                         <ActionForm action={updatePath.bind(null, p.id)} submit="Salvar" confirm={applyWarning(p.path, a.hostname, a.os)} className="stack-form">
-                                          <PathOptions recursive={p.recursive} auditRead={p.audit_read} exclusions={p.exclusions} />
+                                          <PathOptions recursive={p.recursive} auditRead={p.audit_read} exclusions={p.exclusions} readAllowed={view.read_audit_allowed} />
                                         </ActionForm>
                                       </details>
                                       {(p.status === 'error' || p.status === 'divergent' || p.status === 'applied') && (
@@ -231,7 +232,7 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
                         Caminho local no servidor
                         <input name="path" required maxLength={1024} placeholder={pathPlaceholder(a.os)} className="path-input" />
                       </label>
-                      <PathOptions recursive auditRead={false} exclusions={[]} />
+                      <PathOptions recursive auditRead={false} exclusions={[]} readAllowed={view.read_audit_allowed} />
                       {user.role === 'msp_admin' && vs.tone === 'bad' && (
                         <label className="check">
                           <input type="checkbox" name="override_volume" /> Liberar acima do volume contratado (administrador Tech Master)
@@ -253,15 +254,24 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
   );
 }
 
-function PathOptions({ recursive, auditRead, exclusions }: { recursive: boolean; auditRead: boolean; exclusions: string[] }) {
+function PathOptions({ recursive, auditRead, exclusions, readAllowed }: { recursive: boolean; auditRead: boolean; exclusions: string[]; readAllowed: boolean }) {
+  // Fora do plano, a leitura não pode ser ligada; se já estava ligada, pode ser desligada.
+  const readLocked = !readAllowed && !auditRead;
   return (
     <>
       <label className="check">
         <input type="checkbox" name="recursive" defaultChecked={recursive} /> Incluir subpastas e arquivos
       </label>
       <label className="check">
-        <input type="checkbox" name="audit_read" defaultChecked={auditRead} /> Auditar também leituras (gera muito mais eventos)
+        <input type="checkbox" name="audit_read" defaultChecked={auditRead} disabled={readLocked} /> Auditar também leituras (gera muito mais eventos)
       </label>
+      {!readAllowed && (
+        <p className="muted small">
+          {readLocked
+            ? 'A auditoria de leitura não faz parte do plano Essencial. Fale com a Tech Master para mudar o plano.'
+            : 'O plano atual não inclui auditoria de leitura: ela continua neste caminho, mas, se desligada, não poderá ser ligada de novo.'}
+        </p>
+      )}
       <label>
         Ignorar (um padrão por linha, ex.: *.tmp, ~$*)
         <textarea name="exclusions" rows={3} defaultValue={exclusions.join('\n')} className="path-input" />
