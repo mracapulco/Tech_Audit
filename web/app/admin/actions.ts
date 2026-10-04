@@ -37,6 +37,21 @@ export async function createLicense(tenantId: string, _: ActionResult | undefine
   return { ok: 'Licença criada.' };
 }
 
+export async function updateLicense(tenantId: string, licenseId: string, _: ActionResult | undefined, f: FormData): Promise<ActionResult> {
+  const r = await apiSend('PATCH', `/api/admin/licenses/${licenseId}`, {
+    plan: str(f, 'plan'),
+    max_agents: str(f, 'max_agents'),
+    max_volume: `${str(f, 'volume')}${str(f, 'unit')}`,
+    valid_from: str(f, 'valid_from'),
+    valid_until: str(f, 'valid_until'),
+    retention_days: str(f, 'retention_days'),
+    grace_days: str(f, 'grace_days'),
+  });
+  if (!r.ok) return { error: r.error };
+  revalidatePath(`/admin/empresas/${tenantId}`);
+  return { ok: 'Licença alterada.' };
+}
+
 export async function revokeLicense(tenantId: string, licenseId: string): Promise<ActionResult> {
   const r = await apiSend('POST', `/api/admin/licenses/${licenseId}/revoke`);
   if (!r.ok) return { error: r.error };

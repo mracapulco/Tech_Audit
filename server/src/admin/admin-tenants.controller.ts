@@ -17,6 +17,31 @@ export function licenseStatus(l: LicenseRow, now = new Date()): 'revoked' | 'sch
   return s === 'none' ? 'expired' : s;
 }
 
+type LicenseFields = Pick<LicenseRow, 'plan' | 'maxAgents' | 'maxVolumeBytes' | 'retentionDays' | 'graceDays' | 'validFrom' | 'validUntil'>;
+
+const LICENSE_FIELDS: [keyof LicenseFields, string][] = [
+  ['plan', 'plan'],
+  ['maxAgents', 'max_agents'],
+  ['maxVolumeBytes', 'max_volume_bytes'],
+  ['retentionDays', 'retention_days'],
+  ['graceDays', 'grace_days'],
+  ['validFrom', 'valid_from'],
+  ['validUntil', 'valid_until'],
+];
+
+const fieldValue = (v: string | number | bigint | Date) => (v instanceof Date ? v.toISOString() : typeof v === 'bigint' ? v.toString() : v);
+
+// Campos alterados, no formato da API: { max_agents: [3, 5] }.
+export function licenseChanges(before: LicenseFields, after: LicenseFields): Record<string, [string | number, string | number]> {
+  const out: Record<string, [string | number, string | number]> = {};
+  for (const [k, name] of LICENSE_FIELDS) {
+    const a = fieldValue(before[k]);
+    const b = fieldValue(after[k]);
+    if (a !== b) out[name] = [a, b];
+  }
+  return out;
+}
+
 const licenseJson = (l: LicenseRow, now: Date) => ({
   id: l.id,
   plan: l.plan,
@@ -100,6 +125,7 @@ export class AdminTenantsController {
     });
     if (!t) throw new NotFoundException('empresa não encontrada');
     const s = evaluateLicenses(t.licenses, now);
+    const history = await this.licenseHistory(id);
     return {
       id: t.id,
       name: t.name,
@@ -113,6 +139,7 @@ export class AdminTenantsController {
         active_agents: t.agents.filter((a) => !a.disabledAt).length,
       },
       licenses: t.licenses.map((l) => licenseJson(l, now)),
+      license_history: history,
       agents: t.agents.map((a) => ({
         id: a.id,
         hostname: a.hostname,
@@ -136,6 +163,27 @@ export class AdminTenantsController {
     };
   }
 
+  // Criações, alterações e revogações de licença da empresa, mais recentes primeiro.
+  private async licenseHistory(tenantId: string) {
+    const rows = await this.prisma.portalAuditLog.findMany({
+      where: { tenantId, action: { in: ['admin.license.create', 'admin.license.update', 'admin.license.revoke'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    const ids = [...new Set(rows.map((r) => r.userId).filter((u): u is string => !!u))];
+    const users = new Map((await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
+    return rows.map((r) => {
+      const d = (r.details ?? {}) as { license?: string; changes?: Record<string, [string | number, string | number]> };
+      return {
+        at: r.createdAt,
+        action: r.action.slice('admin.license.'.length),
+        license_id: d.license ?? null,
+        user: (r.userId && users.get(r.userId)) ?? null,
+        changes: d.changes ?? null,
+      };
+    });
+  }
+
   @Post('tenants/:id/licenses')
   async addLicense(@Req() req: PortalRequest, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const b = asBody(body);
@@ -155,6 +203,39 @@ export class AdminTenantsController {
       }),
     );
     await this.log(req, 'admin.license.create', id, { license: l.id, max_agents: l.maxAgents });
+    return licenseJson(l, new Date());
+  }
+
+  // Altera a licença sem revogar; vale na hora, pois a licença é avaliada a
+  // cada envio e registro de agente. Guarda o antes e o depois no histórico.
+  @Patch('licenses/:id')
+  async updateLicense(@Req() req: PortalRequest, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const b = asBody(body);
+    const cur = await this.prisma.license.findUnique({ where: { id } });
+    if (!cur) throw new NotFoundException('licença não encontrada');
+    if (cur.revokedAt) throw new BadRequestException('licença revogada não pode ser alterada; crie uma nova');
+    const next = {
+      plan: text(b, 'plan', 'Plano', { max: 64, optional: true }) ?? cur.plan,
+      maxAgents: int(b, 'max_agents', 'Limite de servidores', { min: 1, max: 10_000, optional: true }) ?? cur.maxAgents,
+      maxVolumeBytes: text(b, 'max_volume', 'Volume contratado', { max: 32, optional: true }) === undefined
+        ? cur.maxVolumeBytes
+        : volume(b, 'max_volume', 'Volume contratado'),
+      retentionDays: int(b, 'retention_days', 'Retenção (dias)', { min: 1, max: 36_500, optional: true }) ?? cur.retentionDays,
+      graceDays: int(b, 'grace_days', 'Tolerância (dias)', { min: 0, max: 90, optional: true }) ?? cur.graceDays,
+      validFrom: day(b, 'valid_from', 'Início da vigência', false, true) ?? cur.validFrom,
+      validUntil: day(b, 'valid_until', 'Fim da vigência', true, true) ?? cur.validUntil,
+    };
+    if (next.validUntil <= next.validFrom) throw new BadRequestException('o fim da vigência deve ser depois do início');
+    const changes = licenseChanges(cur, next);
+    if (Object.keys(changes).length === 0) throw new BadRequestException('nenhum campo foi alterado');
+    const l = await this.prisma.license.update({ where: { id }, data: next });
+    await this.audit.record({
+      userId: req.user.id,
+      tenantId: l.tenantId,
+      action: 'admin.license.update',
+      ip: req.ip,
+      details: { license: id, changes },
+    });
     return licenseJson(l, new Date());
   }
 

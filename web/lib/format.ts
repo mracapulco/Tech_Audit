@@ -52,6 +52,40 @@ export function formatDateTimeShort(iso: string | null | undefined): string {
   return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)} ${s.slice(11, 16)}`;
 }
 
+// Valores atuais da licença nos campos de data (AAAA-MM-DD em Brasília).
+export const dayInput = (iso: string) => new Date(new Date(iso).getTime() + BRT_OFFSET_MS).toISOString().slice(0, 10);
+export const lastDayInput = (iso: string) => dayInput(new Date(new Date(iso).getTime() - 1).toISOString());
+
+// Volume em bytes para o campo número + unidade: TB quando é inteiro, senão GB.
+export function volumeInput(bytes: string): { value: string; unit: 'GB' | 'TB' } {
+  const b = BigInt(bytes);
+  const tb = 1024n ** 4n;
+  if (b >= tb && b % tb === 0n) return { value: String(b / tb), unit: 'TB' };
+  return { value: String(Number(b) / 1024 ** 3), unit: 'GB' };
+}
+
+const LICENSE_FIELD_LABELS: Record<string, string> = {
+  plan: 'Plano',
+  max_agents: 'Servidores',
+  max_volume_bytes: 'Volume',
+  retention_days: 'Retenção',
+  grace_days: 'Tolerância',
+  valid_from: 'Início',
+  valid_until: 'Último dia',
+};
+
+// Uma alteração de licença do histórico: "Servidores: 3 → 5".
+export function licenseChangeText(field: string, before: string | number, after: string | number): string {
+  const fmt = (v: string | number) => {
+    if (field === 'max_volume_bytes') return formatBytes(v);
+    if (field === 'valid_from') return formatDate(String(v));
+    if (field === 'valid_until') return formatLastDay(String(v));
+    if (field === 'retention_days' || field === 'grace_days') return `${v} ${v === 1 ? 'dia' : 'dias'}`;
+    return String(v);
+  };
+  return `${LICENSE_FIELD_LABELS[field] ?? field}: ${fmt(before)} → ${fmt(after)}`;
+}
+
 // Hoje e daqui a um ano em Brasília, para preencher a nova licença.
 export function defaultLicenseDates(now = new Date()): { from: string; until: string } {
   const today = new Date(now.getTime() + BRT_OFFSET_MS);

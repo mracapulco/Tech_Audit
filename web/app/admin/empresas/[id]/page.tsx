@@ -4,8 +4,20 @@ import { notFound } from 'next/navigation';
 import { ActionForm } from '@/components/action-form';
 import { TopBar } from '@/components/top-bar';
 import { ApiError, apiGet, requireAdmin } from '@/lib/api';
-import { defaultLicenseDates, formatBytes, formatDate, formatDateTimeShort, formatLastDay, licenseStatus, roleLabel } from '@/lib/format';
-import { createLicense, createToken, disableAgent, renameTenant, revokeLicense, revokeToken } from '../../actions';
+import {
+  dayInput,
+  defaultLicenseDates,
+  formatBytes,
+  formatDate,
+  formatDateTimeShort,
+  formatLastDay,
+  lastDayInput,
+  licenseChangeText,
+  licenseStatus,
+  roleLabel,
+  volumeInput,
+} from '@/lib/format';
+import { createLicense, createToken, disableAgent, renameTenant, revokeLicense, revokeToken, updateLicense } from '../../actions';
 
 export const metadata: Metadata = { title: 'Empresa · Tech Audit' };
 
@@ -25,6 +37,13 @@ interface Detail {
     grace_days: number;
     status: string;
   }[];
+  license_history: {
+    at: string;
+    action: 'create' | 'update' | 'revoke';
+    license_id: string | null;
+    user: string | null;
+    changes: Record<string, [string | number, string | number]> | null;
+  }[];
   agents: { id: string; hostname: string; os: string; agent_version: string | null; last_seen_at: string | null; disabled_at: string | null; created_at: string }[];
   tokens: { id: string; description: string | null; expires_at: string; max_uses: number; uses: number; revoked_at: string | null; created_at: string; usable: boolean }[];
   users: { id: string; name: string; email: string; role: string; disabled_at: string | null }[];
@@ -42,6 +61,11 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
   }
   const s = licenseStatus(t.license.status);
   const dates = defaultLicenseDates();
+  const plans = ['Essencial', 'Profissional', 'Enterprise'];
+  const licenseName = (lid: string | null) => {
+    const l = t.licenses.find((x) => x.id === lid);
+    return l ? `${l.plan} (${formatDate(l.valid_from)} a ${formatLastDay(l.valid_until)})` : 'licença';
+  };
 
   return (
     <>
@@ -113,12 +137,18 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
                         <td>{l.retention_days} dias</td>
                         <td>
                           {l.status !== 'revoked' && (
-                            <ActionForm
-                              action={revokeLicense.bind(null, t.id, l.id)}
-                              submit="Revogar"
-                              secondary
-                              confirm={`Revogar a licença ${l.plan}? Se for a única vigente, os agentes desta empresa param de enviar eventos.`}
-                            />
+                            <div className="row-actions">
+                              <details className="edit">
+                                <summary className="small-btn secondary">Editar</summary>
+                                <LicenseEditForm tenantId={t.id} license={l} plans={plans} />
+                              </details>
+                              <ActionForm
+                                action={revokeLicense.bind(null, t.id, l.id)}
+                                submit="Revogar"
+                                secondary
+                                confirm={`Revogar a licença ${l.plan}? Se for a única vigente, os agentes desta empresa param de enviar eventos.`}
+                              />
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -168,6 +198,45 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
             </ActionForm>
           </div>
         </section>
+
+        {t.license_history.length > 0 && (
+          <details className="section">
+            <summary>Histórico de licenças</summary>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Quando</th>
+                    <th>Quem</th>
+                    <th>O que mudou</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.license_history.map((h, i) => (
+                    <tr key={i}>
+                      <td className="nowrap">{formatDateTimeShort(h.at)}</td>
+                      <td>{h.user ?? '-'}</td>
+                      <td>
+                        {h.action === 'create' && <>Criou a licença {licenseName(h.license_id)}</>}
+                        {h.action === 'revoke' && <>Revogou a licença {licenseName(h.license_id)}</>}
+                        {h.action === 'update' && (
+                          <>
+                            Alterou a licença {licenseName(h.license_id)}
+                            <ul className="plain-list small">
+                              {Object.entries(h.changes ?? {}).map(([field, [before, after]]) => (
+                                <li key={field}>{licenseChangeText(field, before, after)}</li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
 
         <section className="section">
           <h2>Servidores (agentes)</h2>
@@ -308,5 +377,58 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
         </section>
       </main>
     </>
+  );
+}
+
+// Edita a licença no lugar, sem revogar; vale na hora para os agentes.
+function LicenseEditForm({ tenantId, license: l, plans }: { tenantId: string; license: Detail['licenses'][number]; plans: string[] }) {
+  const vol = volumeInput(l.max_volume_bytes);
+  return (
+    <ActionForm
+      action={updateLicense.bind(null, tenantId, l.id)}
+      submit="Salvar alterações"
+      className="stack-form"
+      confirm={`Alterar a licença ${l.plan}? A mudança vale na hora para os servidores desta empresa e fica no histórico.`}
+    >
+      <label>
+        Plano
+        <select name="plan" defaultValue={l.plan}>
+          {(plans.includes(l.plan) ? plans : [l.plan, ...plans]).map((p) => (
+            <option key={p}>{p}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Servidores
+        <input name="max_agents" type="number" min={1} max={10000} defaultValue={l.max_agents} required />
+      </label>
+      <label>
+        Volume contratado
+        <span className="joined">
+          <input name="volume" type="number" min={0} step="any" defaultValue={vol.value} required />
+          <select name="unit" defaultValue={vol.unit}>
+            <option>GB</option>
+            <option>TB</option>
+          </select>
+        </span>
+      </label>
+      <label>
+        Início
+        <input name="valid_from" type="date" defaultValue={dayInput(l.valid_from)} required />
+      </label>
+      <label>
+        Último dia
+        <input name="valid_until" type="date" defaultValue={lastDayInput(l.valid_until)} required />
+      </label>
+      <label>
+        Retenção (dias)
+        <input name="retention_days" type="number" min={1} max={36500} defaultValue={l.retention_days} required />
+      </label>
+      <label>
+        Tolerância após o vencimento (dias)
+        <input name="grace_days" type="number" min={0} max={90} defaultValue={l.grace_days} required />
+      </label>
+      <p className="muted small">Se o limite de servidores ficar abaixo dos que já estão ativos, eles continuam enviando; só novos registros são recusados.</p>
+    </ActionForm>
   );
 }
