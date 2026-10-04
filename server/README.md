@@ -124,6 +124,12 @@ go run ./cmd/agent -config agent.json -replay /tmp/export.xml
   1 dia após o vencimento; depois disso responde `403` e o agente segura o
   lote e tenta de novo a cada minuto. Volume contratado não bloqueia ingestão
   (seção 9.2).
+- **Alteração de licença**: `PATCH /api/admin/licenses/:id` muda plano,
+  limites, vigência, retenção e tolerância de uma licença não revogada. Vale
+  na hora (a licença é avaliada a cada envio e registro); reduzir o limite de
+  servidores abaixo dos ativos só recusa registros novos. Cada alteração fica
+  no `portal_audit_log` com o antes e o depois de cada campo, e a tela da
+  empresa mostra o histórico. Revogar e criar uma nova continua disponível.
 - **Idempotência**: um `batch_id` repetido é confirmado sem regravar; eventos
   repetidos em outro lote são ignorados pelo índice único
   `(agent_id, source_record_id, time)`. A resposta `200` é o ACK que faz o

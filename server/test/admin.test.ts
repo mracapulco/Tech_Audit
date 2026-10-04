@@ -105,6 +105,21 @@ describe('portal: administração', { skip }, () => {
     const row = list.body.find((r: { id: string }) => r.id === tid);
     assert.deepEqual([row.license_status, row.active_agents, row.max_agents], ['active', 1, 3]);
 
+    // Editar a licença vigente vale na hora e fica no histórico com antes e depois.
+    assert.equal((await call(client, 'PATCH', `/admin/licenses/${lic.body.id}`, { max_agents: 9 })).status, 403);
+    assert.equal((await call(admin, 'PATCH', `/admin/licenses/${lic.body.id}`, {})).status, 400);
+    const badEnd = await call(admin, 'PATCH', `/admin/licenses/${lic.body.id}`, { valid_until: '2025-12-31' });
+    assert.equal(badEnd.status, 400);
+    const ed = await call(admin, 'PATCH', `/admin/licenses/${lic.body.id}`, { max_agents: '5', max_volume: '3TB', retention_days: 1825, plan: 'Profissional' });
+    assert.equal(ed.status, 200, JSON.stringify(ed.body));
+    assert.deepEqual([ed.body.id, ed.body.max_agents, ed.body.max_volume_bytes, ed.body.retention_days], [lic.body.id, 5, String(3n * 1024n ** 4n), 1825]);
+    const de = await call(admin, 'GET', `/admin/tenants/${tid}`);
+    assert.equal(de.body.license.max_agents, 5);
+    const upd = de.body.license_history.find((h: { action: string }) => h.action === 'update');
+    assert.deepEqual(upd.changes, { max_agents: [3, 5], max_volume_bytes: [String(2n * 1024n ** 4n), String(3n * 1024n ** 4n)], retention_days: [365, 1825] });
+    assert.equal(upd.license_id, lic.body.id);
+    assert.ok(upd.user);
+
     // Desativar o agente libera a vaga; revogar token e licença.
     assert.equal((await call(admin, 'POST', `/admin/agents/${d.body.agents[0].id}/disable`)).status, 200);
     assert.equal((await call(admin, 'POST', `/admin/tokens/${d.body.tokens[0].id}/revoke`)).status, 200);
@@ -114,6 +129,9 @@ describe('portal: administração', { skip }, () => {
     assert.equal(d2.body.tokens[0].usable, false);
     assert.equal(d2.body.licenses[0].status, 'revoked');
     assert.equal(d2.body.license.status, 'none');
+    assert.equal((await call(admin, 'PATCH', `/admin/licenses/${lic.body.id}`, { max_agents: 9 })).status, 400);
+    assert.equal((await call(admin, 'PATCH', `/admin/licenses/${randomUUID()}`, { max_agents: 9 })).status, 404);
+    assert.deepEqual(d2.body.license_history.map((h: { action: string }) => h.action), ['revoke', 'update', 'create']);
 
     assert.equal((await call(admin, 'PATCH', `/admin/tenants/${tid}`, { name: `Renomeada ${id}` })).body.name, `Renomeada ${id}`);
     assert.equal((await call(admin, 'GET', `/admin/tenants/${randomUUID()}`)).status, 404);

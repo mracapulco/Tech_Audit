@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { acceptsIngestion, evaluateLicenses, LicenseTerms } from '../src/licensing/license.js';
+import { licenseChanges } from '../src/admin/admin-tenants.controller.js';
 
 const lic = (o: Partial<LicenseTerms> = {}): LicenseTerms => ({
   id: 'l1',
@@ -59,5 +60,25 @@ describe('evaluateLicenses', () => {
     );
     assert.equal(s.status, 'active');
     assert.equal(s.maxAgents, 6);
+  });
+});
+
+describe('licenseChanges', () => {
+  const base = {
+    plan: 'Essencial',
+    maxAgents: 3,
+    maxVolumeBytes: 2n * 1024n ** 4n,
+    retentionDays: 365,
+    graceDays: 1,
+    validFrom: new Date('2026-10-01T03:00:00Z'),
+    validUntil: new Date('2027-10-01T03:00:00Z'),
+  };
+
+  it('lista só os campos alterados, com antes e depois', () => {
+    assert.deepEqual(licenseChanges(base, { ...base }), {});
+    assert.deepEqual(licenseChanges(base, { ...base, maxAgents: 5, validUntil: new Date('2028-10-01T03:00:00Z') }), {
+      max_agents: [3, 5],
+      valid_until: ['2027-10-01T03:00:00.000Z', '2028-10-01T03:00:00.000Z'],
+    });
   });
 });
