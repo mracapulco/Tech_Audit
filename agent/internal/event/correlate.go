@@ -127,6 +127,7 @@ const (
 	pendDirWrite = "dirwrite" // escrita numa pasta: um item foi criado (ou chegou) nela
 	pendAgg      = "agg"      // repetições sendo agregadas
 	pendBulk     = "bulk"     // alterações de permissão/dono em sequência
+	pendGone     = "gone"     // exclusão vinda do Linux: espera ver se o arquivo é criado de novo
 )
 
 type pending struct {
@@ -329,13 +330,44 @@ func (c *Correlator) addLogical(ev Event, out *[]Event) {
 		}
 		c.bulk(ev, out)
 	case ActionCreated:
+		c.recreated(&ev)
 		c.st.Created[strings.ToLower(ev.Path)] = ev.Time
 		c.aggregate(ev, out)
-	case ActionModified, ActionRead, ActionAttributesChanged, ActionDenied:
+	case ActionModified:
+		c.recreated(&ev)
 		c.aggregate(ev, out)
-	default: // excluir, renomear, mover, Lixeira
+	case ActionRead, ActionAttributesChanged, ActionDenied:
+		c.aggregate(ev, out)
+	case ActionDeleted:
+		if ev.ItemType == "folder" || ev.Path == "" {
+			c.emit(ev, out)
+			return
+		}
+		// O Windows, ao copiar para o Samba, às vezes apaga a cópia e copia
+		// de novo (arquivos baixados da internet, com a marca "veio da
+		// internet"): só conta como exclusão se o arquivo não voltar logo.
+		c.push(&pending{Type: pendGone, Key: goneKey(ev), Deadline: ev.Time.Add(c.cfg.AggregateWindow), Event: ev})
+	default: // renomear, mover, Lixeira
 		c.emit(ev, out)
 	}
+}
+
+func goneKey(ev Event) string {
+	return strings.ToLower(strings.Join([]string{ev.Computer, userKey(ev.User), ev.Path}, "|"))
+}
+
+// recreated descarta a exclusão pendente do mesmo arquivo pelo mesmo
+// usuário quando ele é gravado de novo: foi uma cópia refeita.
+func (c *Correlator) recreated(ev *Event) {
+	p := c.find(pendGone, goneKey(*ev))
+	if p == nil {
+		return
+	}
+	p.Consumed = true
+	c.remove(p)
+	ev.RelatedRecords = append(ev.RelatedRecords, p.Event.RelatedRecords...)
+	ev.RelatedRecords = append(ev.RelatedRecords, p.Event.RecordID)
+	ev.Details = mergeDetails(ev.Details, map[string]string{"rewritten_after_delete": "true"})
 }
 
 // permsOnCreate junta ao evento "criou" ainda pendente uma alteração de
@@ -435,6 +467,8 @@ func (c *Correlator) expire(now time.Time, out *[]Event) {
 			c.emit(next.Event, out)
 		case pendBulk:
 			c.resolveBulk(next, out)
+		case pendGone:
+			c.emit(next.Event, out)
 		}
 	}
 }

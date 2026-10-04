@@ -458,11 +458,35 @@ func TestLogicalEvents(t *testing.T) {
 		got = append(got, fmt.Sprintf("%s %s %s %d %s", e.Action, e.ItemType, e.Path, e.Count, e.Details["permissions_set_on_create"]))
 	}
 	want := []string{
-		"deleted file /dados/velho.txt 1 ",
 		"created folder /dados/nova 1 true",
 		"created file /dados/nova/a.txt 2 ",
+		"deleted file /dados/velho.txt 1 ",
 		"permission_changed file /dados/outro.txt 1 ",
 	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("eventos:\n%s", strings.Join(got, "\n"))
+	}
+}
+
+// Cópia para o Samba refeita pelo Windows: cria, apaga e cria de novo o
+// mesmo arquivo. Não é exclusão; uma exclusão sem volta continua sendo.
+func TestLogicalDeleteThenRecreate(t *testing.T) {
+	ev := func(at time.Duration, action, path string) Event {
+		return Event{Kind: "samba", Time: t0.Add(at), Computer: "lhr", User: User{Name: "thiago", Domain: "LHR-NAS"},
+			ProcessID: "4030614", Path: path, ItemType: "file", Action: action, Outcome: "success"}
+	}
+	r := newRun(t, nil)
+	r.add(
+		ev(0, ActionCreated, "/b/Teste/AnyDesk.exe"),
+		ev(0, ActionDeleted, "/b/Teste/AnyDesk.exe"),
+		ev(13*time.Second, ActionCreated, "/b/Teste/AnyDesk.exe"),
+		ev(14*time.Second, ActionDeleted, "/b/Teste/velho.txt"),
+	)
+	var got []string
+	for _, e := range r.flush() {
+		got = append(got, fmt.Sprintf("%s %s %d", e.Action, e.Path, e.Count))
+	}
+	want := []string{"created /b/Teste/AnyDesk.exe 2", "deleted /b/Teste/velho.txt 1"}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("eventos:\n%s", strings.Join(got, "\n"))
 	}

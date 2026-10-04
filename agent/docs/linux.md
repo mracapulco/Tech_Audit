@@ -95,6 +95,12 @@ Samba.
 
 ## Limitações conhecidas
 
+- Uma exclusão de arquivo só é enviada depois de 1 minuto (janela de
+  agregação): o Windows, ao copiar para o Samba um arquivo baixado da
+  internet, apaga a cópia e copia de novo. Se o mesmo usuário gravar o
+  arquivo de novo nesse tempo, fica só a criação, com
+  `details.rewritten_after_delete`.
+
 - **Criação de pasta** e **renomear** pelo auditd usam um mapa das pastas
   auditadas montado na partida e atualizado a cada 6 horas; com pastas muito
   grandes (milhões de subpastas) a primeira leitura demora. Caminhos que não
