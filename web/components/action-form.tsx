@@ -16,6 +16,7 @@ export function ActionForm({
   className,
   confirm,
   secondary,
+  menu,
 }: {
   action: (prev: FormResult | undefined, form: FormData) => Promise<FormResult>;
   submit: string;
@@ -23,6 +24,8 @@ export function ActionForm({
   className?: string;
   confirm?: string;
   secondary?: boolean;
+  // Item de um menu ⋯; "danger" para ações que apagam ou desligam.
+  menu?: true | 'danger';
 }) {
   const [state, run, pending] = useActionState(action, undefined);
   return (
@@ -35,7 +38,7 @@ export function ActionForm({
     >
       {children}
       <div className="form-actions">
-        <button type="submit" disabled={pending} className={secondary ? 'secondary small-btn' : undefined}>
+        <button type="submit" disabled={pending} className={menu ? `menu-item${menu === 'danger' ? ' danger' : ''}` : secondary ? 'secondary small-btn' : undefined}>
           {pending ? 'Aguarde…' : submit}
         </button>
         {state?.error && (
@@ -78,7 +81,7 @@ function Secret({
       {server && (
         <>
           <p className="muted small">
-            No instalador do agente (<a href="/agente">Instalar agente</a>), informe este endereço do servidor e o token acima:
+            No instalador do agente, informe este endereço do servidor e o token acima:
           </p>
           <CopyField value={server} />
         </>

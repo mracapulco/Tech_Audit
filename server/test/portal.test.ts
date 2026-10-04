@@ -146,6 +146,19 @@ describe('portal: login e pesquisa de eventos', { skip }, () => {
     assert.ok(list.some((t: { id: string }) => t.id === tenantB));
   });
 
+  it('resumo da empresa: o cliente só vê a própria', async () => {
+    const token = await tokenFor(auditorA);
+    const r = await get(`/tenants/${tenantA}`, token);
+    assert.equal(r.status, 200, await r.clone().text());
+    const s = await r.json();
+    assert.equal(s.id, tenantA);
+    assert.equal(s.license.active_agents, s.agents.ok + s.agents.late + s.agents.stale);
+    assert.equal((await get(`/tenants/${tenantB}`, token)).status, 403);
+    const msp = await tokenFor(mspEmail);
+    assert.equal((await get(`/tenants/${tenantB}`, msp)).status, 200);
+    assert.equal((await get(`/tenants/${randomUUID()}`, msp)).status, 404);
+  });
+
   it('filtra por usuário, caminho (prefixo, sem caixa), ação e período', async () => {
     const token = await tokenFor(auditorA);
     const ids = async (p: Record<string, string>) =>

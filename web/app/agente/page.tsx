@@ -35,7 +35,7 @@ export default async function AgentPage() {
     <>
       <TopBar user={user} active="agente" />
       <main className="page">
-        <h1>Instalar agente</h1>
+        <h1>Instaladores do agente</h1>
         <p className="muted">
           O agente é instalado em cada servidor de arquivos, Windows ou Linux. Ele roda como serviço, lê a auditoria de acesso a arquivos e envia
           para o Tech Audit. Veja abaixo o <a href="#linux">passo a passo para Linux</a>.
@@ -65,8 +65,8 @@ export default async function AgentPage() {
           <h2>2. Tenha um token de instalação</h2>
           {admin ? (
             <p>
-              Gere o token na página da empresa, em <Link href="/admin/empresas">Empresas</Link> › Tokens de instalação. Cada token vale para o número
-              de instalações e o prazo escolhidos.
+              Gere o token no espaço da empresa, em Servidores › <strong>Adicionar servidor</strong>. Cada token vale para o número de instalações e o
+              prazo escolhidos.
             </p>
           ) : (
             <p>O token de instalação é fornecido pela Tech Master. Ele vale para poucas instalações e por tempo limitado.</p>
@@ -84,8 +84,7 @@ export default async function AgentPage() {
               </li>
               <li>Cole o token de instalação, clique em Avançar e depois em Instalar.</li>
               <li>
-                Em poucos minutos o servidor aparece no <Link href="/painel">Painel</Link>. Depois escolha as pastas em{' '}
-                <Link href="/configuracao">Caminhos auditados</Link>.
+                Em poucos minutos o servidor aparece na aba <Link href="/servidores">Servidores</Link>, onde você escolhe as pastas.
               </li>
             </ol>
           </div>
@@ -124,8 +123,8 @@ export default async function AgentPage() {
                 <CopyField value={linuxRegisterCommand(SERVER_URL)} />
               </li>
               <li>
-                O servidor aparece no <Link href="/painel">Painel</Link>. Escolha as pastas em <Link href="/configuracao">Caminhos auditados</Link>{' '}
-                usando o caminho no servidor, por exemplo /srv/dados/financeiro.
+                O servidor aparece na aba <Link href="/servidores">Servidores</Link>. Escolha as pastas usando o caminho no servidor, por exemplo
+                /srv/dados/financeiro.
               </li>
             </ol>
           </div>

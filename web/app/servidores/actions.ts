@@ -20,7 +20,7 @@ export async function addPath(agentId: string, _: ActionResult | undefined, f: F
     confirm: true,
   });
   if (!r.ok) return { error: r.error };
-  revalidatePath('/configuracao');
+  revalidatePath('/servidores', 'layout');
   return { ok: `${r.data.path} cadastrado. O agente aplica na próxima consulta.` };
 }
 
@@ -32,27 +32,27 @@ export async function updatePath(pathId: string, _: ActionResult | undefined, f:
     confirm: true,
   });
   if (!r.ok) return { error: r.error };
-  revalidatePath('/configuracao');
+  revalidatePath('/servidores', 'layout');
   return { ok: 'Opções salvas. O agente aplica na próxima consulta.' };
 }
 
 export async function removePath(pathId: string): Promise<ActionResult> {
   const r = await apiSend('DELETE', `/api/config/paths/${pathId}`, { confirm: true });
   if (!r.ok) return { error: r.error };
-  revalidatePath('/configuracao');
+  revalidatePath('/servidores', 'layout');
   return { ok: 'Remoção pedida.' };
 }
 
 export async function reapplyPath(pathId: string): Promise<ActionResult> {
   const r = await apiSend('POST', `/api/config/paths/${pathId}/reapply`, { confirm: true });
   if (!r.ok) return { error: r.error };
-  revalidatePath('/configuracao');
+  revalidatePath('/servidores', 'layout');
   return { ok: 'Reaplicação pedida.' };
 }
 
 export async function ackAlert(alertId: string): Promise<ActionResult> {
   const r = await apiSend('POST', `/api/config/alerts/${alertId}/ack`);
   if (!r.ok) return { error: r.error };
-  revalidatePath('/configuracao');
+  revalidatePath('/servidores', 'layout');
   return { ok: 'Ok.' };
 }

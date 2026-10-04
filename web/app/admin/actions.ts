@@ -9,17 +9,20 @@ import { agentConfig } from '@/lib/format';
 
 const AGENT_URL = agentServerUrl(process.env.PUBLIC_AGENT_URL ?? process.env.API_URL ?? 'http://localhost:3001');
 const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
+// As mesmas informações aparecem em várias abas (licença, servidores, usuários, painel).
+const refresh = () => revalidatePath('/', 'layout');
 
 export async function createTenant(_: ActionResult | undefined, f: FormData): Promise<ActionResult> {
   const r = await apiSend<{ id: string }>('POST', '/api/admin/tenants', { name: str(f, 'name') });
   if (!r.ok) return { error: r.error };
-  redirect(`/admin/empresas/${r.data.id}`);
+  // Empresa nova começa pela licença, sem ela os agentes não se registram.
+  redirect(`/licenca?cliente=${r.data.id}`);
 }
 
 export async function renameTenant(id: string, _: ActionResult | undefined, f: FormData): Promise<ActionResult> {
   const r = await apiSend('PATCH', `/api/admin/tenants/${id}`, { name: str(f, 'name') });
   if (!r.ok) return { error: r.error };
-  revalidatePath(`/admin/empresas/${id}`);
+  refresh();
   return { ok: 'Nome salvo.' };
 }
 
@@ -33,7 +36,7 @@ export async function createLicense(tenantId: string, _: ActionResult | undefine
     retention_days: str(f, 'retention_days'),
   });
   if (!r.ok) return { error: r.error };
-  revalidatePath(`/admin/empresas/${tenantId}`);
+  refresh();
   return { ok: 'Licença criada.' };
 }
 
@@ -48,14 +51,14 @@ export async function updateLicense(tenantId: string, licenseId: string, _: Acti
     grace_days: str(f, 'grace_days'),
   });
   if (!r.ok) return { error: r.error };
-  revalidatePath(`/admin/empresas/${tenantId}`);
+  refresh();
   return { ok: 'Licença alterada.' };
 }
 
 export async function revokeLicense(tenantId: string, licenseId: string): Promise<ActionResult> {
   const r = await apiSend('POST', `/api/admin/licenses/${licenseId}/revoke`);
   if (!r.ok) return { error: r.error };
-  revalidatePath(`/admin/empresas/${tenantId}`);
+  refresh();
   return { ok: 'Licença revogada.' };
 }
 
@@ -66,7 +69,7 @@ export async function createToken(tenantId: string, _: FormResult | undefined, f
     ttl_hours: str(f, 'ttl_hours'),
   });
   if (!r.ok) return { error: r.error };
-  revalidatePath(`/admin/empresas/${tenantId}`);
+  refresh();
   return {
     ok: `Token criado para ${r.data.max_uses} instalação(ões).`,
     secret: {
@@ -94,14 +97,14 @@ async function installerName(): Promise<string> {
 export async function revokeToken(tenantId: string, tokenId: string): Promise<ActionResult> {
   const r = await apiSend('POST', `/api/admin/tokens/${tokenId}/revoke`);
   if (!r.ok) return { error: r.error };
-  revalidatePath(`/admin/empresas/${tenantId}`);
+  refresh();
   return { ok: 'Token revogado.' };
 }
 
 export async function disableAgent(tenantId: string, agentId: string): Promise<ActionResult> {
   const r = await apiSend('POST', `/api/admin/agents/${agentId}/disable`);
   if (!r.ok) return { error: r.error };
-  revalidatePath(`/admin/empresas/${tenantId}`);
+  refresh();
   return { ok: 'Servidor desativado.' };
 }
 
@@ -115,7 +118,7 @@ export async function createUser(_: ActionResult | undefined, f: FormData): Prom
     password: str(f, 'password'),
   });
   if (!r.ok) return { error: r.error };
-  revalidatePath('/admin/usuarios');
+  refresh();
   return r.data.password
     ? { ok: `Usuário ${r.data.email} criado.`, secret: { label: 'Senha inicial gerada.', value: r.data.password } }
     : { ok: `Usuário ${r.data.email} criado.` };
@@ -124,7 +127,7 @@ export async function createUser(_: ActionResult | undefined, f: FormData): Prom
 export async function setUserDisabled(userId: string, disabled: boolean): Promise<ActionResult> {
   const r = await apiSend('PATCH', `/api/admin/users/${userId}`, { disabled });
   if (!r.ok) return { error: r.error };
-  revalidatePath('/admin/usuarios');
+  refresh();
   return { ok: disabled ? 'Usuário desativado.' : 'Usuário reativado.' };
 }
 
@@ -137,13 +140,13 @@ export async function resetPassword(userId: string): Promise<ActionResult> {
 export async function deleteUser(userId: string): Promise<ActionResult> {
   const r = await apiSend('DELETE', `/api/admin/users/${userId}`);
   if (!r.ok) return { error: r.error };
-  revalidatePath('/admin/usuarios');
+  refresh();
   return { ok: 'Usuário excluído.' };
 }
 
 export async function resetMfa(userId: string): Promise<ActionResult> {
   const r = await apiSend('POST', `/api/admin/users/${userId}/mfa/reset`);
   if (!r.ok) return { error: r.error };
-  revalidatePath('/admin/usuarios');
+  refresh();
   return { ok: 'Verificação redefinida; as sessões abertas foram encerradas.' };
 }

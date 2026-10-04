@@ -23,7 +23,7 @@ acesso). Com duplo clique abre o assistente em português, que pede:
 - **Endereço do servidor**: o que o portal mostra na mesma tela (em produção,
   `https://ingest-audit.techmaster.inf.br`). Não precisa de `/v1/events`: o
   agente completa sozinho.
-- **Token de instalação**: gerado na página da empresa, começa com `ta_enr_`.
+- **Token de instalação**: gerado no portal, na aba Servidores da empresa (botão **Adicionar servidor**), começa com `ta_enr_`.
 
 ### MSI sem telas (GPO ou script)
 

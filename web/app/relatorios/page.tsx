@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ActionSelect } from '@/components/action-select';
-import { TopBar } from '@/components/top-bar';
-import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
+import { currentTenant, Workspace } from '@/components/workspace';
+import { ApiError, apiGet, type CurrentUser } from '@/lib/api';
 import { formatInt, REPORT_TYPES } from '@/lib/dashboard';
 import { apiParams, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
 
@@ -24,8 +24,6 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const preset = presetRange(one(sp.periodo));
   const f = { ...screenFilters(sp), ...(preset ?? {}) };
   const user = await apiGet<CurrentUser>('/api/auth/me');
-  const msp = isMsp(user);
-  const tenants = msp ? await apiGet<{ id: string; name: string }[]>('/api/tenants') : [];
   const current = REPORT_TYPES.find((t) => t.key === tipo)!;
 
   let t: ReportTable | null = null;
@@ -41,9 +39,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <TopBar user={user} active="relatorios" />
-      <main className="page">
-        <h1>Relatórios</h1>
+      <Workspace user={user} tenantId={currentTenant(user, f.cliente)} tab="relatorios">
+        <h2 className="page-title">Relatórios</h2>
 
         <nav className="tabs" aria-label="Tipo de relatório">
           {REPORT_TYPES.map((r) => (
@@ -56,19 +53,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
         <form method="get" className="card filters">
           <input type="hidden" name="tipo" value={tipo} />
-          {msp && (
-            <label>
-              Empresa
-              <select name="cliente" defaultValue={f.cliente}>
-                <option value="">Todas as empresas</option>
-                {tenants.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          {f.cliente && <input type="hidden" name="cliente" value={f.cliente} />}
           <label>
             Usuário
             <input name="usuario" defaultValue={f.usuario} placeholder="joao.silva, DOMINIO\joao ou SID" />
@@ -158,7 +143,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             )}
           </section>
         )}
-      </main>
+      </Workspace>
     </>
   );
 }
