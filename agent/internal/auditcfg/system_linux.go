@@ -35,6 +35,11 @@ func NewPlatformSyncer(client *Client, opts Options) (*Syncer, error) {
 // NewNotifier escreve no syslog/journald (identificador techaudit-agent),
 // para o administrador local ver as alterações sem acessar o portal.
 func NewNotifier(logf func(string, ...any)) func(warning bool, msg string) {
+	if os.Getenv("JOURNAL_STREAM") != "" {
+		// Sob o systemd o log do agente já vai para o journald (syslog);
+		// gravar de novo duplicaria cada aviso.
+		return func(bool, string) {}
+	}
 	w, err := syslog.New(syslog.LOG_NOTICE|syslog.LOG_DAEMON, "techaudit-agent")
 	if err != nil {
 		logf("syslog indisponível: %v", err)
