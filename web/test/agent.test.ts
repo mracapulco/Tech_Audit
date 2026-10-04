@@ -22,7 +22,7 @@ describe('instalação do agente', () => {
       linuxRegisterCommand('https://ingest-audit.techmaster.inf.br/', 'ta_enr_abc'),
       "sudo techaudit-agent install -endpoint https://ingest-audit.techmaster.inf.br -enrollment-token 'ta_enr_abc'",
     );
-    assert.equal(linuxPackageCommand('deb', 'techaudit-agent_0.4.0-1_amd64.deb'), 'sudo apt install ./techaudit-agent_0.4.0-1_amd64.deb');
-    assert.equal(linuxPackageCommand('rpm', 'techaudit-agent-0.4.0-1.x86_64.rpm'), 'sudo yum install ./techaudit-agent-0.4.0-1.x86_64.rpm');
+    assert.equal(linuxPackageCommand('deb', 'techaudit-agent_0.4.0-1_amd64.deb'), 'sudo env NEEDRESTART_SUSPEND=1 apt install -y /tmp/techaudit-agent_0.4.0-1_amd64.deb');
+    assert.equal(linuxPackageCommand('rpm', 'techaudit-agent-0.4.0-1.x86_64.rpm'), 'sudo yum install -y /tmp/techaudit-agent-0.4.0-1.x86_64.rpm');
   });
 });

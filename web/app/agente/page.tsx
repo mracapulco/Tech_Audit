@@ -108,14 +108,14 @@ export default async function AgentPage() {
           <div className="card">
             <ol className="steps">
               <li>
-                Baixe o pacote da sua distribuição e copie para o servidor:
+                Baixe o pacote da sua distribuição e copie para a pasta /tmp do servidor:
                 <div className="download-list">
                   <LinuxPackage kind="deb" label="Ubuntu / Debian (.deb)" pkg={inst.linux?.deb ?? null} />
                   <LinuxPackage kind="rpm" label="CentOS / Oracle / Red Hat (.rpm)" pkg={inst.linux?.rpm ?? null} />
                 </div>
               </li>
               <li>
-                Instale com um usuário que tenha sudo, na pasta onde está o pacote (o auditd é instalado junto, se faltar):
+                Instale com um usuário que tenha sudo (o auditd é instalado junto, se faltar):
                 {inst.linux?.deb && <CopyField value={linuxPackageCommand('deb', inst.linux.deb.file_name)} />}
                 {inst.linux?.rpm && <CopyField value={linuxPackageCommand('rpm', inst.linux.rpm.file_name)} />}
               </li>
