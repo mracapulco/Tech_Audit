@@ -131,10 +131,22 @@ export async function setUserDisabled(userId: string, disabled: boolean): Promis
   return { ok: disabled ? 'Usuário desativado.' : 'Usuário reativado.' };
 }
 
-export async function resetPassword(userId: string): Promise<ActionResult> {
-  const r = await apiSend<{ password?: string }>('POST', `/api/admin/users/${userId}/password`);
+export async function renameUser(userId: string, _: ActionResult | undefined, f: FormData): Promise<ActionResult> {
+  const r = await apiSend('PATCH', `/api/admin/users/${userId}`, { name: str(f, 'name') });
   if (!r.ok) return { error: r.error };
-  return { ok: 'Senha redefinida; as sessões abertas foram encerradas.', secret: { label: 'Nova senha.', value: r.data.password ?? '' } };
+  refresh();
+  return { ok: 'Nome atualizado.' };
+}
+
+// Com a senha preenchida, usa a escolhida; em branco, gera uma e mostra uma vez.
+export async function resetPassword(userId: string, _: ActionResult | undefined, f: FormData): Promise<ActionResult> {
+  const password = String(f.get('password') ?? '');
+  if (password && password !== String(f.get('confirm') ?? '')) return { error: 'As duas senhas não conferem.' };
+  const r = await apiSend<{ password?: string }>('POST', `/api/admin/users/${userId}/password`, password ? { password } : {});
+  if (!r.ok) return { error: r.error };
+  return r.data.password
+    ? { ok: 'Senha redefinida; as sessões abertas foram encerradas.', secret: { label: 'Nova senha.', value: r.data.password } }
+    : { ok: 'Senha definida; as sessões abertas foram encerradas.' };
 }
 
 export async function deleteUser(userId: string): Promise<ActionResult> {

@@ -143,6 +143,24 @@ describe('verificação em duas etapas', { skip }, () => {
     assert.match((await (await login(clientEmail)).json()).token, /^ta_ses_/);
   });
 
+  it('Minha conta: troca o próprio nome e a senha (pede a atual, derruba as outras sessões)', async () => {
+    const other = (await (await login(clientEmail)).json()).token as string;
+    const token = (await (await login(clientEmail)).json()).token as string;
+    const patch = (body: unknown) =>
+      fetch(base + '/api/auth/me', { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    assert.equal((await patch({ name: '  ' })).status, 400);
+    assert.equal((await (await patch({ name: 'Cliente Renomeado' })).json()).name, 'Cliente Renomeado');
+
+    assert.equal((await post('/auth/password', { current: 'errada-123456', password: 'nova-senha-12345' }, token)).status, 400);
+    assert.equal((await post('/auth/password', { current: PASSWORD, password: 'curta' }, token)).status, 400);
+    assert.equal((await post('/auth/password', { current: PASSWORD, password: 'nova-senha-12345' }, token)).status, 200);
+    const me = (t: string) => fetch(base + '/api/auth/me', { headers: { authorization: `Bearer ${t}` } });
+    assert.equal((await me(token)).status, 200);
+    assert.equal((await me(other)).status, 401);
+    assert.equal((await login(clientEmail)).status, 401);
+    assert.match((await (await login(clientEmail, 'nova-senha-12345')).json()).token, /^ta_ses_/);
+  });
+
   it('equipe Tech Master não pode desativar', async () => {
     // Os três códigos aceitos agora já foram usados; libera para o teste.
     await prisma.user.update({ where: { email: mspEmail }, data: { totpLastStep: null } });

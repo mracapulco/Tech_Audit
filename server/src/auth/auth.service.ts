@@ -3,7 +3,7 @@ import { clearMfa } from '../admin/admin.js';
 import { generateToken, hashToken } from '../common/tokens.js';
 import type { User } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma.service.js';
-import { verifyPassword } from './passwords.js';
+import { hashPassword, verifyPassword } from './passwords.js';
 import { isRole, MSP_ROLES, type PortalUser } from './roles.js';
 import { generateSecret, otpauthUrl, verifyCode } from './totp.js';
 
@@ -120,6 +120,28 @@ export class AuthService {
   }
 
   // --- Minha conta --------------------------------------------------------
+
+  async rename(userId: string, name: string) {
+    return this.prisma.user.update({ where: { id: userId }, data: { name } });
+  }
+
+  // Troca da própria senha: exige a atual e encerra as outras sessões abertas,
+  // mantendo a de quem trocou.
+  async changePassword(userId: string, sessionId: string, current: string, next: string): Promise<boolean> {
+    const u = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!(await verifyPassword(u.passwordHash, current))) return false;
+    let passwordHash: string;
+    try {
+      passwordHash = await hashPassword(next);
+    } catch (e) {
+      throw new BadRequestException((e as Error).message);
+    }
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.userSession.updateMany({ where: { userId, revokedAt: null, id: { not: sessionId } }, data: { revokedAt: new Date() } }),
+    ]);
+    return true;
+  }
 
   async mfaStatus(userId: string) {
     const u = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
