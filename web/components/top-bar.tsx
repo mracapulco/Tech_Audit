@@ -27,7 +27,8 @@ export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' |
         {admin && link('limpeza', '/admin/limpeza', 'Limpeza')}
       </nav>
       <Link href="/conta" className={active === 'conta' ? 'muted who active' : 'muted who'} title="Minha conta">
-        {user.name} · {user.email}
+        {user.name}
+        <span className="who-email"> · {user.email}</span>
       </Link>
       <form action={logout}>
         <button type="submit" className="link">
