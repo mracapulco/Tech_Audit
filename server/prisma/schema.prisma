@@ -25,6 +25,7 @@ model Tenant {
   enrollmentTokens EnrollmentToken[]
   users            User[]
   auditedPaths     AuditedPath[]
+  eventPurges      EventPurge[]
   // Faixa do volume auditado já avisada (0, 80 ou 100%), para alertar só na subida.
   volumeAlertLevel Int               @default(0) @map("volume_alert_level")
 
@@ -326,4 +327,34 @@ model Alert {
 
   @@index([tenantId, createdAt])
   @@map("alerts")
+}
+
+// Limpeza de eventos feita pela Tech Master no portal: o que foi pedido, por
+// quem e quanto foi apagado. A exclusão roda em segundo plano, um dia por vez.
+model EventPurge {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  // Servidor escolhido; nulo = todos os servidores da empresa.
+  agentId       String?   @map("agent_id") @db.Uuid
+  hostname      String?
+  // Período apagado: eventos com fromTime <= time < toTime (fromTime nulo = desde o início).
+  fromTime      DateTime? @map("from_time")
+  toTime        DateTime  @map("to_time")
+  // manual (período escolhido) ou retention (o que passou da retenção da licença).
+  mode          String
+  retentionDays Int?      @map("retention_days")
+  userId        String?   @map("user_id") @db.Uuid
+  userName      String?   @map("user_name")
+  // running, done, failed ou interrupted (servidor reiniciado no meio).
+  status        String
+  expectedCount BigInt    @map("expected_count")
+  deletedCount  BigInt    @default(0) @map("deleted_count")
+  error         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  finishedAt    DateTime? @map("finished_at")
+
+  @@index([tenantId, createdAt])
+  @@index([createdAt])
+  @@map("event_purges")
 }

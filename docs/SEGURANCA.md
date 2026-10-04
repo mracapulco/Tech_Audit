@@ -93,9 +93,11 @@ RFC 6238) além da senha.
 
 ## Próximos itens técnicos (sem decisão pendente)
 
-- **Retenção (LGPD).** Os planos de 90 dias / 1 ano / 5 anos ainda não apagam
-  eventos antigos. Os eventos têm nomes de usuários, IPs e nomes de arquivos,
-  que são dados pessoais; guardar além do contratado é risco legal.
+- **Retenção (LGPD).** Os eventos têm nomes de usuários, IPs e nomes de
+  arquivos, que são dados pessoais; guardar além do contratado é risco legal.
+  O administrador já apaga pelo portal (menu Limpeza: por empresa, servidor e
+  período, ou "o que passou da retenção da licença"), com prévia, confirmação
+  e histórico de quem apagou o quê. Falta a limpeza automática agendada.
 - **mTLS dos agentes** antes da venda, como já decidido.
 - **Usuário próprio do banco para a API**, sem privilégio de superusuário.
 - **Bloqueio de login compartilhado** (hoje fica em memória; com mais de uma

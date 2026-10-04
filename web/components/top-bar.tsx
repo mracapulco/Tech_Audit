@@ -4,7 +4,7 @@ import { canDownloadAgent } from '@/lib/agent';
 import { Logo } from '@/components/logo';
 import type { CurrentUser } from '@/lib/api';
 
-export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' | 'eventos' | 'relatorios' | 'configuracao' | 'agente' | 'empresas' | 'usuarios' | 'conta' }) {
+export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' | 'eventos' | 'relatorios' | 'configuracao' | 'agente' | 'empresas' | 'usuarios' | 'limpeza' | 'conta' }) {
   const admin = user.role === 'msp_admin';
   const link = (key: typeof active, href: string, label: string) => (
     <Link href={href} className={active === key ? 'nav active' : 'nav'} aria-current={active === key ? 'page' : undefined}>
@@ -24,6 +24,7 @@ export function TopBar({ user, active }: { user: CurrentUser; active: 'painel' |
         {canDownloadAgent(user.role) && link('agente', '/agente', 'Agente')}
         {admin && link('empresas', '/admin/empresas', 'Empresas')}
         {admin && link('usuarios', '/admin/usuarios', 'Usuários')}
+        {admin && link('limpeza', '/admin/limpeza', 'Limpeza')}
       </nav>
       <Link href="/conta" className={active === 'conta' ? 'muted who active' : 'muted who'} title="Minha conta">
         {user.name} · {user.email}
