@@ -221,8 +221,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                       {d.recent_sensitive.map((e) => (
                         <tr key={`${e.agent_id}-${e.record_id}-${e.time}`}>
                           <td className="nowrap">{formatDateTime(e.time)}</td>
-                          {showTenant && <td>{e.tenant_name}</td>}
-                          <td>{e.server}</td>
+                          {showTenant && <td className="nowrap">{e.tenant_name}</td>}
+                          <td className="nowrap">{e.server}</td>
                           <td className="nowrap">{userText(e)}</td>
                           <td>{eventActionText(e)}</td>
                           <td className="path">

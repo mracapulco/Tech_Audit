@@ -140,8 +140,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                 {page.items.map((e) => (
                   <tr key={`${e.agent_id}-${e.record_id}-${e.time}`}>
                     <td className="nowrap">{formatDateTime(e.time)}</td>
-                    {msp && <td>{e.tenant_name}</td>}
-                    <td>{e.server}</td>
+                    {msp && <td className="nowrap">{e.tenant_name}</td>}
+                    <td className="nowrap">{e.server}</td>
                     <td className="nowrap">
                       {e.user_name ? (
                         <Link className="cell-link" href={`/eventos?${screenQuery({ ...f, usuario: e.user_sid ?? `${e.user_domain ?? ''}\\${e.user_name}` })}`}>
@@ -163,7 +163,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                       {newPathText(e) && <span className="new-path">→ {newPathText(e)}</span>}
                     </td>
                     <td className={e.success ? 'ok' : 'fail'}>{e.success ? 'Sucesso' : 'Falha'}</td>
-                    <td>{e.source_ip ?? '-'}</td>
+                    <td className="nowrap">{e.source_ip ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
