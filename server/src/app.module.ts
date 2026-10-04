@@ -3,6 +3,8 @@ import { AgentConfigController } from './auditcfg/agent-config.controller.js';
 import { AuditConfigService } from './auditcfg/audit-config.service.js';
 import { ConfigController } from './auditcfg/config.controller.js';
 import { AdminGuard } from './admin/admin.guard.js';
+import { AdminPurgeController } from './admin/admin-purge.controller.js';
+import { PurgeService } from './admin/purge.service.js';
 import { AdminTenantsController } from './admin/admin-tenants.controller.js';
 import { AdminUsersController } from './admin/admin-users.controller.js';
 import { InstallerController } from './agent-installer/installer.controller.js';
@@ -35,6 +37,7 @@ import { ReportsService } from './reports/reports.service.js';
     EventsController,
     AdminTenantsController,
     AdminUsersController,
+    AdminPurgeController,
     ConfigController,
     AgentConfigController,
     ReportsController,
@@ -55,6 +58,7 @@ import { ReportsService } from './reports/reports.service.js';
     AdminGuard,
     AuditConfigService,
     ReportsService,
+    PurgeService,
   ],
 })
 export class AppModule {}
