@@ -56,16 +56,22 @@ Samba.
 
 ## Instalação
 
-1. Baixe o pacote em **Instalar agente** no portal e copie para o servidor.
+1. Baixe o pacote em **Instalar agente** no portal e copie para a pasta `/tmp`
+   do servidor.
 2. Instale (o auditd vem junto, do repositório da distribuição):
 
    ```
-   sudo apt install ./techaudit-agent_0.4.0-1_amd64.deb
+   sudo env NEEDRESTART_SUSPEND=1 apt install -y /tmp/techaudit-agent_0.4.1-1_amd64.deb
    ```
 
    ```
-   sudo yum install ./techaudit-agent-0.4.0-1.x86_64.rpm
+   sudo yum install -y /tmp/techaudit-agent-0.4.1-1.x86_64.rpm
    ```
+
+   Em `/tmp` o apt lê o arquivo sem o aviso "Download is performed
+   unsandboxed", e `NEEDRESTART_SUSPEND=1` evita a lista de serviços e sessões
+   "desatualizados" que o Ubuntu mostra ao fim de qualquer instalação. Nenhum
+   dos dois é erro.
 
 3. Registre o servidor com o token de instalação gerado no portal:
 
@@ -92,6 +98,17 @@ Samba.
   O agente desfaz o que aplicou (auditd e Samba) e mantém configuração e
   dados. `sudo apt purge techaudit-agent` apaga também `/etc/techaudit` e
   `/var/lib/techaudit`.
+
+## Windows perguntando "copiar sem as propriedades?"
+
+Arquivos baixados da internet levam uma marca invisível ("veio da internet",
+um fluxo alternativo do NTFS). Um compartilhamento Samba sem o módulo
+`streams_xattr` não guarda essa marca, e o Windows pergunta se pode copiar sem
+ela. Para ligar o módulo num compartilhamento auditado, acrescente depois do
+bloco do Tech Audit a linha `vfs objects = streams_xattr` (com os módulos que
+o compartilhamento já usava antes, se havia algum). Na consulta seguinte (até
+2 minutos) o agente incorpora o módulo ao bloco dele, e ao remover a
+auditoria a linha volta a valer sozinha.
 
 ## Limitações conhecidas
 

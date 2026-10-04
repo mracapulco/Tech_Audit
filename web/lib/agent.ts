@@ -18,7 +18,10 @@ export function linuxRegisterCommand(serverUrl: string, token = 'ta_enr_...'): s
   return `sudo techaudit-agent install -endpoint ${agentServerUrl(serverUrl)} -enrollment-token '${token}'`;
 }
 
-// Instala o pacote baixado, com as dependências (auditd) vindas do repositório da distribuição.
+// Instala o pacote copiado para /tmp, com as dependências (auditd) vindas do
+// repositório da distribuição. Em /tmp o apt consegue ler o arquivo sem o
+// aviso "Download is performed unsandboxed"; NEEDRESTART_SUSPEND evita a
+// lista de serviços e sessões "desatualizados" que o Ubuntu mostra no fim.
 export function linuxPackageCommand(kind: 'deb' | 'rpm', fileName: string): string {
-  return kind === 'deb' ? `sudo apt install ./${fileName}` : `sudo yum install ./${fileName}`;
+  return kind === 'deb' ? `sudo env NEEDRESTART_SUSPEND=1 apt install -y /tmp/${fileName}` : `sudo yum install -y /tmp/${fileName}`;
 }
