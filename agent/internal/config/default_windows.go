@@ -42,3 +42,7 @@ func ForgetEnrollmentToken() {
 	defer k.Close()
 	k.DeleteValue("EnrollmentToken")
 }
+
+func platformDefaults(*Config) {}
+
+func rememberPath(string) {}

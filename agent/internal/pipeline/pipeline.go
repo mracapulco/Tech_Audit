@@ -33,6 +33,9 @@ type Pipeline struct {
 	// Exclude, se informado, descarta caminhos excluídos no portal (renomear
 	// e mover passam se origem ou destino não estiver excluído).
 	Exclude func(path string) bool
+	// Decode converte um evento bruto da fonte. Padrão: XML do Event Log do
+	// Windows (event.ParseXML + event.Decode com Filter).
+	Decode func(raw []byte) (event.Event, bool, error)
 	// Send envia um lote; erro = tentar de novo mais tarde.
 	Send func(context.Context, *event.Batch) error
 
@@ -66,6 +69,16 @@ func (p *Pipeline) Run(parent context.Context) error {
 	}
 	if p.Logf == nil {
 		p.Logf = func(string, ...any) {}
+	}
+	if p.Decode == nil {
+		p.Decode = func(raw []byte) (event.Event, bool, error) {
+			r, err := event.ParseXML(raw)
+			if err != nil {
+				return event.Event{}, false, err
+			}
+			ev, ok := event.Decode(r, p.Filter)
+			return ev, ok, nil
+		}
 	}
 	p.wake = make(chan struct{}, 1)
 	instance, err := p.Store.InstanceID()
@@ -121,12 +134,12 @@ func (p *Pipeline) collect(ctx context.Context) error {
 		}
 		var out []event.Event
 		for _, x := range raw {
-			r, err := event.ParseXML(x)
+			ev, ok, err := p.Decode(x)
 			if err != nil {
 				p.Logf("evento ignorado: %v", err)
 				continue
 			}
-			if ev, ok := event.Decode(r, p.Filter); ok {
+			if ok {
 				p.mu.Lock()
 				out = append(out, p.Correlator.Add(ev)...)
 				p.mu.Unlock()

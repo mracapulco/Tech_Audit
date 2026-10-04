@@ -27,7 +27,7 @@ type Config struct {
 	// agente o troca, em POST /v1/enroll, por um token próprio.
 	EnrollmentToken string `json:"enrollment_token"`
 	// DataDir guarda o buffer, as credenciais e o log. Padrão no Windows:
-	// C:\ProgramData\TechAudit.
+	// C:\ProgramData\TechAudit; no Linux: /var/lib/techaudit.
 	DataDir string `json:"data_dir"`
 	// CredentialsFile guarda o agent_id e o token recebidos no registro.
 	CredentialsFile string `json:"credentials_file"`
@@ -114,6 +114,7 @@ func Load(path string) (*Config, error) {
 	if err := json.Unmarshal(b, c); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	rememberPath(path)
 	return c, c.applyDefaults()
 }
 
@@ -152,6 +153,7 @@ func (c *Config) applyDefaults() error {
 	if c.MaxBufferMB <= 0 {
 		c.MaxBufferMB = 1024
 	}
+	platformDefaults(c)
 	switch c.StartFrom {
 	case "":
 		c.StartFrom = "now"

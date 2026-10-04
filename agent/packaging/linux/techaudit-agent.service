@@ -1,0 +1,14 @@
+[Unit]
+Description=Tech Audit Agent (auditoria de acesso a arquivos)
+Documentation=https://audit.techmaster.inf.br
+After=network-online.target auditd.service
+Wants=network-online.target
+ConditionPathExists=/etc/techaudit/agent.json
+
+[Service]
+ExecStart=/usr/bin/techaudit-agent -config /etc/techaudit/agent.json
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

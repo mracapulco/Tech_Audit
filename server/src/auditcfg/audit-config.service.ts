@@ -6,7 +6,7 @@ import type { AuthenticatedAgent } from '../ingest/agent-auth.guard.js';
 import { LicenseService } from '../licensing/license.service.js';
 import { PrismaService } from '../prisma.service.js';
 import type { AgentResult, SizeReport } from './agent-input.js';
-import { CONFIG_WRITE_ROLES, dedupedVolume, isWithin, pathKey, volumeUsage, type VolumeUsage } from './paths.js';
+import { CONFIG_WRITE_ROLES, dedupedVolume, isWithin, normalizePath, PathError, pathKey, volumeUsage, type VolumeUsage } from './paths.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -220,13 +220,20 @@ export class AuditConfigService {
     });
   }
 
-  async addPath(r: Requester, agentId: string, path: string, o: PathOptions, override: boolean) {
+  async addPath(r: Requester, agentId: string, rawPath: unknown, o: PathOptions, override: boolean) {
     this.assertCanWrite(r.user);
     if (override && r.user.role !== 'msp_admin') throw new ForbiddenException('só o administrador da Tech Master pode liberar acima do volume contratado');
-    const key = pathKey(path);
     return this.prisma.$transaction(async (tx) => {
       const agent = await this.agentFor(r.user, agentId, tx);
       if (agent.disabledAt) throw new BadRequestException('servidor desativado');
+      let path: string;
+      try {
+        path = normalizePath(rawPath, agent.os);
+      } catch (err) {
+        if (err instanceof PathError) throw new BadRequestException(err.message);
+        throw err;
+      }
+      const key = pathKey(path);
       // Serializa alterações do mesmo tenant (contagem de volume e versão).
       await tx.$queryRaw`SELECT id FROM tenants WHERE id = ${agent.tenantId}::uuid FOR UPDATE`;
 

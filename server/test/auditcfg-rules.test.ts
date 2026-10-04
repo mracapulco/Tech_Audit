@@ -19,6 +19,26 @@ describe('normalizePath', () => {
   });
 });
 
+describe('normalizePath em servidor Linux', () => {
+  it('padroniza barras repetidas e a barra final', () => {
+    assert.equal(normalizePath(' /srv//Dados/Financeiro/ ', 'linux'), '/srv/Dados/Financeiro');
+    assert.equal(normalizePath('/home/compartilhado', 'linux'), '/home/compartilhado');
+  });
+
+  it('recusa caminho do Windows, relativo, raiz e pastas do sistema', () => {
+    for (const bad of ['D:\\Dados', '\\\\srv\\x', 'srv/dados', '/', '/srv/../etc', '/proc/1', '/etc', '/var/log/audit', '/srv/a\nb']) {
+      assert.throws(() => normalizePath(bad, 'linux'), PathError, bad);
+    }
+  });
+
+  it('diferencia maiúsculas e separa pastas por /', () => {
+    assert.notEqual(pathKey('/srv/Dados'), pathKey('/srv/dados'));
+    assert.ok(isWithin(pathKey('/srv/dados/fin'), pathKey('/srv/dados')));
+    assert.ok(!isWithin(pathKey('/srv/dadosx'), pathKey('/srv/dados')));
+    assert.ok(!isWithin(pathKey('/srv/Dados/fin'), pathKey('/srv/dados')));
+  });
+});
+
 describe('isWithin e dedupedVolume', () => {
   it('compara por pasta inteira, não por prefixo de texto', () => {
     assert.ok(isWithin('d:\\dados\\fin\\2026', 'd:\\dados\\fin'));

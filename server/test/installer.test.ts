@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { createTenant, createUser } from '../src/admin/admin.js';
-import { compareVersions, latestMsi } from '../src/agent-installer/installer.js';
+import { compareVersions, latestMsi, latestPackage } from '../src/agent-installer/installer.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { PrismaService } from '../src/prisma.service.js';
@@ -26,6 +26,20 @@ describe('instalador do agente: escolha do arquivo', () => {
       version: '0.10.0',
     });
     assert.equal(latestMsi(['agent.zip']), null);
+  });
+
+  it('pega os pacotes Linux x86-64 mais novos', () => {
+    const names = [
+      'techaudit-agent_0.4.0-1_amd64.deb',
+      'techaudit-agent_0.10.0-1_amd64.deb',
+      'techaudit-agent_0.11.0-1_arm64.deb',
+      'techaudit-agent-0.4.0-1.x86_64.rpm',
+      'techaudit-agent-0.4.0-1.aarch64.rpm',
+      'TechAuditAgent-0.4.0.msi',
+    ];
+    assert.deepEqual(latestPackage(names, 'deb'), { name: 'techaudit-agent_0.10.0-1_amd64.deb', version: '0.10.0' });
+    assert.deepEqual(latestPackage(names, 'rpm'), { name: 'techaudit-agent-0.4.0-1.x86_64.rpm', version: '0.4.0' });
+    assert.deepEqual(latestPackage(names, 'windows'), { name: 'TechAuditAgent-0.4.0.msi', version: '0.4.0' });
   });
 });
 
@@ -72,7 +86,7 @@ describe('instalador do agente: download pelo portal', { skip }, () => {
   it('avisa quando não há instalador', async () => {
     const r = await get('/agent/installer', 'msp_admin');
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { available: false });
+    assert.deepEqual(await r.json(), { available: false, linux: { deb: null, rpm: null } });
     assert.equal((await get('/agent/installer/download', 'msp_admin')).status, 404);
   });
 
@@ -95,6 +109,23 @@ describe('instalador do agente: download pelo portal', { skip }, () => {
     const user = await prisma.user.findFirstOrThrow({ where: { email: `tenant_admin.${id}@exemplo.com.br` } });
     const log = await prisma.portalAuditLog.findFirst({ where: { action: 'agent.download', userId: user.id } });
     assert.ok(log, 'download registrado no log de acesso');
+  });
+
+  it('entrega os pacotes .deb e .rpm', async () => {
+    const deb = Buffer.from('deb ' + id);
+    writeFileSync(join(dir, 'techaudit-agent_0.4.0-1_amd64.deb'), deb);
+    const info = await (await get('/agent/installer', 'msp_admin')).json();
+    assert.equal(info.linux.deb.file_name, 'techaudit-agent_0.4.0-1_amd64.deb');
+    assert.equal(info.linux.deb.sha256, createHash('sha256').update(deb).digest('hex'));
+    assert.equal(info.linux.rpm, null);
+    assert.equal(info.file_name, 'TechAuditAgent-0.3.0.msi');
+
+    const r = await get('/agent/installer/download?kind=deb', 'msp_admin');
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('content-type'), 'application/vnd.debian.binary-package');
+    assert.deepEqual(Buffer.from(await r.arrayBuffer()), deb);
+    assert.equal((await get('/agent/installer/download?kind=rpm', 'msp_admin')).status, 404);
+    assert.equal((await get('/agent/installer/download?kind=exe', 'msp_admin')).status, 400);
   });
 
   it('auditor do cliente e visitante sem login não baixam', async () => {

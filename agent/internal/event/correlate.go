@@ -231,6 +231,10 @@ func (c *Correlator) add(ev Event, out *[]Event) {
 	if c.cfg.IgnoreProcessID != "" && strings.EqualFold(ev.ProcessID, c.cfg.IgnoreProcessID) {
 		return
 	}
+	if ev.Action != "" {
+		c.addLogical(ev, out)
+		return
+	}
 	key := handleKey(ev)
 	if ev.EventID == IDShareSession || ev.EventID == IDShareAccess {
 		c.rememberIP(ev)
@@ -311,6 +315,26 @@ func (c *Correlator) add(ev Event, out *[]Event) {
 			// execute/traverse e delete_child sozinhos: ruído. A exclusão do
 			// item aparece no 4663 DELETE dele.
 		}
+	}
+}
+
+// addLogical trata eventos que já chegam com a ação definida pela fonte
+// (auditd e Samba no Linux, que registram a operação em si): só agrega
+// repetições, junta permissões definidas ao criar e agrupa alterações em massa.
+func (c *Correlator) addLogical(ev Event, out *[]Event) {
+	switch ev.Action {
+	case ActionPermissionChanged, ActionOwnerChanged:
+		if c.permsOnCreate(ev) {
+			return
+		}
+		c.bulk(ev, out)
+	case ActionCreated:
+		c.st.Created[strings.ToLower(ev.Path)] = ev.Time
+		c.aggregate(ev, out)
+	case ActionModified, ActionRead, ActionAttributesChanged, ActionDenied:
+		c.aggregate(ev, out)
+	default: // excluir, renomear, mover, Lixeira
+		c.emit(ev, out)
 	}
 }
 

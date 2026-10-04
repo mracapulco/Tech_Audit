@@ -261,6 +261,33 @@ describe('configuração de caminhos auditados', { skip }, () => {
     assert.ok(v.alerts.some((a: { kind: string }) => a.kind === 'audit_config_divergent'));
   });
 
+  it('servidor Linux: caminho com / e maiúsculas diferenciadas', async () => {
+    const id = randomUUID().slice(0, 8);
+    const tenantId = (await createTenant(prisma, `Config Linux ${id}`)).id;
+    await createLicense(prisma, { tenantId, maxAgents: 1, maxVolumeBytes: BigInt(10 * GB), validFrom: new Date(Date.now() - DAY), validUntil: new Date(Date.now() + 30 * DAY) });
+    const token = (await createEnrollmentToken(prisma, { tenantId })).token;
+    const enrolled = await json(
+      await fetch(base + '/v1/enroll', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enrollment_token: token, hostname: 'fs-linux', machine_id: `fs-linux-${id}`, os: 'linux' }),
+      }),
+      201,
+    );
+    const email = `tenant_admin.linux.${id}@techmaster.inf.br`;
+    await createUser(prisma, { email, name: 'admin linux', role: 'tenant_admin', tenantId, password: PASSWORD });
+    const lx = await login(email);
+    const agent = enrolled.agent_id;
+
+    const p = await json(await addPath(lx, '/srv//dados/Financeiro/', {}, agent), 201);
+    assert.equal(p.path, '/srv/dados/Financeiro');
+    assert.equal((await addPath(lx, '/srv/dados/financeiro', {}, agent)).status, 201, 'no Linux maiúsculas contam');
+    const win = await addPath(lx, 'D:\\Dados', {}, agent);
+    assert.equal(win.status, 400);
+    assert.match((await win.json()).message, /Linux/);
+    assert.equal((await addPath(lx, '/etc', {}, agent)).status, 400, 'pasta do sistema');
+  });
+
   it('corpo inválido do agente dá 400; sem token, 401', async () => {
     assert.equal((await agentPost('/v1/config/result', { version: 'x', results: [] })).status, 400);
     assert.equal((await agentPost('/v1/config/sizes', { paths: [{ path_id: 'x', size_bytes: 1 }] })).status, 400);

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ActionForm } from '@/components/action-form';
 import { TopBar } from '@/components/top-bar';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
-import { ALERT_TONE, applyWarning, barWidth, canEditConfig, optionsSummary, pathStatus, volumeState } from '@/lib/config';
+import { ALERT_TONE, applyNotice, applyWarning, barWidth, canEditConfig, optionsSummary, pathPlaceholder, pathStatus, removeWarning, volumeState } from '@/lib/config';
 import { formatBytes, formatDateTimeShort } from '@/lib/format';
 import { ackAlert, addPath, reapplyPath, removePath, updatePath } from './actions';
 
@@ -27,6 +27,7 @@ interface PathRow {
 interface AgentRow {
   id: string;
   hostname: string;
+  os: string | null;
   last_seen_at: string | null;
   config_version: number;
   config_applied_version: number | null;
@@ -97,8 +98,8 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
         {view && vs && (
           <>
             <p className="muted small">
-              O agente de cada servidor busca esta configuração a cada 2 minutos e aplica sozinho a política de auditoria e a SACL das pastas. Toda
-              alteração gera um alerta, um evento no log Application do servidor e um registro no histórico.
+              O agente de cada servidor busca esta configuração a cada 2 minutos e aplica sozinho a auditoria das pastas (SACL no Windows; auditd e Samba no Linux). Toda
+              alteração gera um alerta, um registro no log do servidor (Application no Windows, syslog no Linux) e um registro no histórico.
             </p>
 
             <section className="card volume">
@@ -192,18 +193,18 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
                                     <div className="row-actions">
                                       <details className="edit">
                                         <summary className="small-btn secondary">Editar</summary>
-                                        <ActionForm action={updatePath.bind(null, p.id)} submit="Salvar" confirm={applyWarning(p.path, a.hostname)} className="stack-form">
+                                        <ActionForm action={updatePath.bind(null, p.id)} submit="Salvar" confirm={applyWarning(p.path, a.hostname, a.os)} className="stack-form">
                                           <PathOptions recursive={p.recursive} auditRead={p.audit_read} exclusions={p.exclusions} />
                                         </ActionForm>
                                       </details>
                                       {(p.status === 'error' || p.status === 'divergent' || p.status === 'applied') && (
-                                        <ActionForm action={reapplyPath.bind(null, p.id)} submit="Reaplicar" secondary confirm={applyWarning(p.path, a.hostname)} />
+                                        <ActionForm action={reapplyPath.bind(null, p.id)} submit="Reaplicar" secondary confirm={applyWarning(p.path, a.hostname, a.os)} />
                                       )}
                                       <ActionForm
                                         action={removePath.bind(null, p.id)}
                                         submit="Remover"
                                         secondary
-                                        confirm={`Parar de auditar ${p.path} em ${a.hostname}? O agente retira a auditoria que ele mesmo adicionou na SACL; os eventos já coletados continuam no histórico.`}
+                                        confirm={removeWarning(p.path, a.hostname, a.os)}
                                       />
                                     </div>
                                   )}
@@ -223,12 +224,12 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
                     <ActionForm
                       action={addPath.bind(null, a.id)}
                       submit="Adicionar caminho"
-                      confirm={applyWarning('{{path}}', a.hostname)}
+                      confirm={applyWarning('{{path}}', a.hostname, a.os)}
                       className="stack-form"
                     >
                       <label>
                         Caminho local no servidor
-                        <input name="path" required maxLength={1024} placeholder="D:\Dados\Financeiro" className="path-input" />
+                        <input name="path" required maxLength={1024} placeholder={pathPlaceholder(a.os)} className="path-input" />
                       </label>
                       <PathOptions recursive auditRead={false} exclusions={[]} />
                       {user.role === 'msp_admin' && vs.tone === 'bad' && (
@@ -236,10 +237,7 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
                           <input type="checkbox" name="override_volume" /> Liberar acima do volume contratado (administrador Tech Master)
                         </label>
                       )}
-                      <p className="notice small">
-                        O agente vai habilitar a auditoria de “Sistema de arquivos” no Windows e adicionar uma entrada de auditoria (SACL) nesta pasta,
-                        sem remover as que já existem. Isso aumenta o volume do log de Segurança do Windows.
-                      </p>
+                      <p className="notice small">{applyNotice(a.os)}</p>
                       <label className="check">
                         <input type="checkbox" name="ciente" required /> Estou ciente de que o agente vai alterar a configuração de auditoria deste servidor
                       </label>
