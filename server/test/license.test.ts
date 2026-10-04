@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { acceptsIngestion, evaluateLicenses, LicenseTerms } from '../src/licensing/license.js';
 import { licenseChanges } from '../src/admin/admin-tenants.controller.js';
+import { planFeatures, readAuditAllowed } from '../src/licensing/plans.js';
 
 const lic = (o: Partial<LicenseTerms> = {}): LicenseTerms => ({
   id: 'l1',
@@ -80,5 +81,20 @@ describe('licenseChanges', () => {
       max_agents: [3, 5],
       valid_until: ['2027-10-01T03:00:00.000Z', '2028-10-01T03:00:00.000Z'],
     });
+  });
+});
+
+describe('planos', () => {
+  it('retenção padrão por plano', () => {
+    assert.deepEqual(['Essencial', 'Profissional', 'Enterprise'].map((p) => planFeatures(p).retentionDays), [90, 365, 1825]);
+  });
+
+  it('leitura só fora do Essencial; vale se qualquer licença vigente liberar', () => {
+    assert.equal(readAuditAllowed([]), false);
+    assert.equal(readAuditAllowed([{ plan: 'Essencial' }]), false);
+    assert.equal(readAuditAllowed([{ plan: 'Essencial' }, { plan: 'Profissional' }]), true);
+    assert.equal(readAuditAllowed([{ plan: 'Enterprise' }]), true);
+    assert.equal(readAuditAllowed([{ plan: 'Personalizado' }]), true, 'nome fora da lista não perde recursos');
+    assert.equal(readAuditAllowed([{ plan: 'constructor' }]), true);
   });
 });

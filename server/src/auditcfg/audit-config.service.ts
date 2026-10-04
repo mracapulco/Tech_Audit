@@ -4,6 +4,7 @@ import { isMspRole } from '../auth/roles.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { AuthenticatedAgent } from '../ingest/agent-auth.guard.js';
 import { LicenseService } from '../licensing/license.service.js';
+import { readAuditAllowed } from '../licensing/plans.js';
 import { PrismaService } from '../prisma.service.js';
 import type { AgentResult, SizeReport } from './agent-input.js';
 import { CONFIG_WRITE_ROLES, dedupedVolume, isWithin, normalizePath, PathError, pathKey, volumeUsage, type VolumeUsage } from './paths.js';
@@ -114,6 +115,16 @@ export class AuditConfigService {
     return volumeUsage(used, license.maxVolumeBytes);
   }
 
+  async readAuditAllowed(tenantId: string, db: Tx | PrismaService = this.prisma): Promise<boolean> {
+    return readAuditAllowed((await this.licenses.stateFor(tenantId, new Date(), db)).licenses);
+  }
+
+  private async assertReadAudit(tenantId: string, db: Tx) {
+    if (!(await this.readAuditAllowed(tenantId, db))) {
+      throw new BadRequestException('a auditoria de leitura não faz parte do plano Essencial; peça à Tech Master para mudar o plano');
+    }
+  }
+
   // --- Portal: consulta ---------------------------------------------------
 
   async view(tenantId: string) {
@@ -128,13 +139,15 @@ export class AuditConfigService {
       },
     });
     if (!tenant) throw new NotFoundException('empresa não encontrada');
-    const [usage, alerts] = await Promise.all([
+    const [usage, readAudit, alerts] = await Promise.all([
       this.usage(tenantId),
+      this.readAuditAllowed(tenantId),
       this.prisma.alert.findMany({ where: { tenantId, acknowledgedAt: null }, orderBy: { createdAt: 'desc' }, take: 20 }),
     ]);
     return {
       tenant: { id: tenant.id, name: tenant.name },
       volume: usageJson(usage),
+      read_audit_allowed: readAudit,
       alerts: alerts.map((a) => ({
         id: a.id.toString(),
         agent_id: a.agentId,
@@ -249,6 +262,8 @@ export class AuditConfigService {
         throw new BadRequestException('o volume auditado já atingiu o contratado na licença; peça à Tech Master para ampliar a licença');
       }
 
+      if (o.auditRead) await this.assertReadAudit(agent.tenantId, tx);
+
       const data = {
         path,
         recursive: o.recursive,
@@ -283,6 +298,8 @@ export class AuditConfigService {
       const p = await this.pathFor(r.user, id, tx);
       if (p.desiredState !== 'active') throw new BadRequestException('caminho removido');
       const o = merge(p);
+      // Leitura que já estava ligada continua (ex.: plano rebaixado); só não pode ligar.
+      if (o.auditRead && !p.auditRead) await this.assertReadAudit(p.tenantId, tx);
       const row = await tx.auditedPath.update({
         where: { id },
         data: { recursive: o.recursive, auditRead: o.auditRead, exclusions: o.exclusions, status: 'pending', lastError: null },

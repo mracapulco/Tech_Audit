@@ -315,6 +315,19 @@ Cada tenant tem uma ou mais licenças (`licenses`), criadas apenas por `msp_admi
 | Validade | 2026-10-01 a 2027-09-30 |
 | Período de tolerância após o vencimento | 1 dia |
 
+**Planos** (decisão de 2026-10-04): servidores e volume são contratados à parte em qualquer plano; o plano define a retenção padrão e os recursos liberados. A tabela fica em `server/src/licensing/plans.ts` (espelhada em `web/lib/plans.ts`).
+
+| | Essencial | Profissional | Enterprise |
+|---|---|---|---|
+| Retenção padrão (pode ser alterada na licença) | 90 dias | 1 ano | 5 anos |
+| Alterações, painel, consulta e relatórios Excel/PDF | sim | sim | sim |
+| Auditoria de leitura (quem abriu o arquivo) | não | sim | sim |
+| Alertas por e-mail e relatórios agendados (a construir) | não | sim | sim |
+| Inventário de permissões (a construir) | não | não | sim |
+
+- Com várias licenças vigentes, vale o recurso de qualquer uma delas. Um nome de plano fora da lista não perde recursos.
+- No Essencial, o portal e a API recusam ligar a auditoria de leitura em um caminho. Se o plano for rebaixado, a leitura que já estava ligada continua; ela só não pode ser ligada de novo depois de desligada.
+
 Regras:
 
 - **Registro de agente**: `POST /v1/enroll` só é aceito se o tenant tiver licença vigente e vaga disponível. Cada agente registrado ocupa uma vaga (`license_activations`, com `agent_id`, hostname, `machine_id` e data). Desativar um agente no portal libera a vaga.

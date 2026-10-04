@@ -66,8 +66,9 @@ describe('configuração de caminhos auditados', { skip }, () => {
     const id = randomUUID().slice(0, 8);
     tenantA = (await createTenant(prisma, `Config A ${id}`)).id;
     tenantB = (await createTenant(prisma, `Config B ${id}`)).id;
-    for (const t of [tenantA, tenantB]) {
-      await createLicense(prisma, { tenantId: t, maxAgents: 2, maxVolumeBytes: BigInt(10 * GB), validFrom: new Date(Date.now() - DAY), validUntil: new Date(Date.now() + 30 * DAY) });
+    // A no plano Profissional (com leitura); B no Essencial (padrão, sem leitura).
+    for (const [t, plan] of [[tenantA, 'Profissional'], [tenantB, undefined]] as const) {
+      await createLicense(prisma, { tenantId: t, plan, maxAgents: 2, maxVolumeBytes: BigInt(10 * GB), validFrom: new Date(Date.now() - DAY), validUntil: new Date(Date.now() + 30 * DAY) });
     }
     const enroll = async (tenantId: string, machine: string) => {
       const token = (await createEnrollmentToken(prisma, { tenantId })).token;
@@ -210,6 +211,21 @@ describe('configuração de caminhos auditados', { skip }, () => {
     // Mesma faixa: sem alerta repetido.
     await json(await agentPost('/v1/config/sizes', { paths: [{ path_id: rh.id, size_bytes: 6 * GB }] }));
     assert.equal((await view(admin)).alerts.filter((a: { kind: string }) => a.kind === 'volume_100').length, 1);
+  });
+
+  it('plano Essencial não permite ligar a auditoria de leitura', async () => {
+    assert.equal((await view(admin)).read_audit_allowed, true);
+    assert.equal((await view(otherAdmin)).read_audit_allowed, false);
+    const no = await call('POST', `/api/config/agents/${agentB}/paths`, otherAdmin, { confirm: true, path: 'E:\\Leitura', audit_read: true });
+    assert.equal(no.status, 400);
+    assert.match((await no.json()).message, /plano Essencial/);
+    const p = await json(await call('POST', `/api/config/agents/${agentB}/paths`, otherAdmin, { confirm: true, path: 'E:\\Leitura' }), 201);
+    assert.equal((await call('PATCH', `/api/config/paths/${p.id}`, otherAdmin, { confirm: true, audit_read: true })).status, 400);
+    // Leitura que já estava ligada (plano rebaixado) continua ao editar outras opções.
+    await prisma.auditedPath.update({ where: { id: p.id }, data: { auditRead: true } });
+    const u = await json(await call('PATCH', `/api/config/paths/${p.id}`, otherAdmin, { confirm: true, exclusions: '*.bak' }));
+    assert.equal(u.audit_read, true);
+    await json(await call('DELETE', `/api/config/paths/${p.id}`, otherAdmin, { confirm: true }));
   });
 
   it('alterar opções e remover: o agente recebe o pedido e confirma', async () => {
