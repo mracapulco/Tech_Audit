@@ -1,7 +1,7 @@
 # Caminhos auditados configurados pelo portal
 
 Em vez de configurar SACLs à mão ou por GPO (veja [auditoria-gpo.md](auditoria-gpo.md)),
-os caminhos auditados podem ser cadastrados no portal, em **Caminhos auditados**.
+os caminhos auditados podem ser cadastrados no portal, na aba **Servidores** da empresa (botão **+ Adicionar pasta** em cada servidor).
 O agente aplica sozinho (docs/ARCHITECTURE.md, seção 4.6).
 
 ## O que o agente faz

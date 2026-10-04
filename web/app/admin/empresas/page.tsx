@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ActionForm } from '@/components/action-form';
+import { Drawer } from '@/components/drawer';
 import { TopBar } from '@/components/top-bar';
 import { apiGet, requireAdmin } from '@/lib/api';
 import { formatBytes, formatLastDay, licenseStatus } from '@/lib/format';
+import { withTenant } from '@/lib/workspace';
 import { createTenant } from '../actions';
 
 export const metadata: Metadata = { title: 'Empresas · Tech Audit' };
@@ -26,14 +28,19 @@ export default async function TenantsPage() {
     <>
       <TopBar user={user} active="empresas" />
       <main className="page">
-        <h1>Empresas</h1>
-
-        <ActionForm action={createTenant} submit="Cadastrar empresa" className="card inline-form">
-          <label className="grow">
-            Nova empresa
-            <input name="name" required maxLength={255} placeholder="Razão social ou nome fantasia" />
-          </label>
-        </ActionForm>
+        <div className="title-row">
+          <h1>Empresas</h1>
+          <Drawer trigger="+ Cadastrar empresa" title="Cadastrar empresa">
+            <ActionForm action={createTenant} submit="Cadastrar e criar a licença" className="stack-form">
+              <label>
+                Nome da empresa
+                <input name="name" required maxLength={255} placeholder="Razão social ou nome fantasia" />
+              </label>
+              <p className="muted small">Depois do cadastro você vai direto para a licença da empresa.</p>
+            </ActionForm>
+          </Drawer>
+        </div>
+        <p className="muted small">Clique numa empresa para abrir o espaço dela: painel, servidores, usuários e licença.</p>
 
         {tenants.length === 0 ? (
           <p className="card empty">Nenhuma empresa cadastrada ainda.</p>
@@ -57,7 +64,7 @@ export default async function TenantsPage() {
                   return (
                     <tr key={t.id}>
                       <td>
-                        <Link href={`/admin/empresas/${t.id}`}>{t.name}</Link>
+                        <Link href={withTenant('/painel', t.id)}>{t.name}</Link>
                       </td>
                       <td>
                         <span className={`pill ${s.tone}`}>{s.label}</span>

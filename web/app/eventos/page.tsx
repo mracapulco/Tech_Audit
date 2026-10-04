@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
 import { apiParams, eventActionText, newPathText, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
 import { ActionSelect } from '@/components/action-select';
-import { TopBar } from '@/components/top-bar';
+import { Menu } from '@/components/menu';
+import { currentTenant, Workspace } from '@/components/workspace';
 
 export const metadata: Metadata = { title: 'Eventos · Tech Audit' };
 
@@ -37,8 +38,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const f = { ...screenFilters(sp), ...(preset ?? {}) };
   const cursor = typeof sp.cursor === 'string' ? sp.cursor : '';
   const user = await apiGet<CurrentUser>('/api/auth/me');
-  const msp = isMsp(user);
-  const tenants = msp ? await apiGet<{ id: string; name: string }[]>('/api/tenants') : [];
+  const showTenant = isMsp(user) && !f.cliente;
 
   let page: { items: EventRow[]; next_cursor: string | null } = { items: [], next_cursor: null };
   let error: string | null = null;
@@ -51,25 +51,11 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <TopBar user={user} active="eventos" />
-
-      <main className="page">
-        <h1>Pesquisa de eventos</h1>
+      <Workspace user={user} tenantId={currentTenant(user, f.cliente)} tab="eventos">
+        <h2 className="page-title">Pesquisa de eventos</h2>
 
         <form method="get" className="card filters">
-          {msp && (
-            <label>
-              Cliente
-              <select name="cliente" defaultValue={f.cliente}>
-                <option value="">Todos os clientes</option>
-                {tenants.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          {f.cliente && <input type="hidden" name="cliente" value={f.cliente} />}
           <label>
             Usuário
             <input name="usuario" defaultValue={f.usuario} placeholder="joao.silva, DOMINIO\joao ou SID" />
@@ -89,15 +75,17 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           </label>
           <div className="buttons">
             <button type="submit">Pesquisar</button>
-            <a className="button secondary" href={`/relatorios/exportar?${screenQuery(f, { tipo: 'eventos', formato: 'xlsx' })}`} download>
-              Excel
-            </a>
-            <a className="button secondary" href={`/relatorios/exportar?${screenQuery(f, { tipo: 'eventos', formato: 'pdf' })}`} download>
-              PDF
-            </a>
-            <a className="button secondary" href={`/eventos/exportar?${screenQuery(f)}`} download>
-              CSV
-            </a>
+            <Menu label={<>Exportar ▾</>} buttonClass="button secondary" align="left">
+              <a className="menu-item" href={`/relatorios/exportar?${screenQuery(f, { tipo: 'eventos', formato: 'xlsx' })}`} download>
+                Excel
+              </a>
+              <a className="menu-item" href={`/relatorios/exportar?${screenQuery(f, { tipo: 'eventos', formato: 'pdf' })}`} download>
+                PDF
+              </a>
+              <a className="menu-item" href={`/eventos/exportar?${screenQuery(f)}`} download>
+                CSV <span className="hint">planilha simples</span>
+              </a>
+            </Menu>
           </div>
           <div className="presets wide">
             <span className="muted">Período rápido:</span>
@@ -127,7 +115,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
               <thead>
                 <tr>
                   <th>Data/hora</th>
-                  {msp && <th>Cliente</th>}
+                  {showTenant && <th>Empresa</th>}
                   <th>Servidor</th>
                   <th>Usuário</th>
                   <th>Ação</th>
@@ -140,7 +128,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                 {page.items.map((e) => (
                   <tr key={`${e.agent_id}-${e.record_id}-${e.time}`}>
                     <td className="nowrap">{formatDateTime(e.time)}</td>
-                    {msp && <td className="nowrap">{e.tenant_name}</td>}
+                    {showTenant && <td className="nowrap">{e.tenant_name}</td>}
                     <td className="nowrap">{e.server}</td>
                     <td className="nowrap">
                       {e.user_name ? (
@@ -175,7 +163,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           {cursor && <Link href={`/eventos?${screenQuery(f)}`}>« Primeira página</Link>}
           {page.next_cursor && <Link href={`/eventos?${screenQuery(f, { cursor: page.next_cursor })}`}>Próxima página »</Link>}
         </nav>
-      </main>
+      </Workspace>
     </>
   );
 }

@@ -6,6 +6,7 @@ import type { AuthenticatedAgent } from '../ingest/agent-auth.guard.js';
 import { LicenseService } from '../licensing/license.service.js';
 import { readAuditAllowed } from '../licensing/plans.js';
 import { PrismaService } from '../prisma.service.js';
+import { agentHealth, lastContact } from '../reports/reports.service.js';
 import type { AgentResult, SizeReport } from './agent-input.js';
 import { CONFIG_WRITE_ROLES, dedupedVolume, isWithin, normalizePath, PathError, pathKey, volumeUsage, type VolumeUsage } from './paths.js';
 
@@ -160,7 +161,11 @@ export class AuditConfigService {
         id: a.id,
         hostname: a.hostname,
         os: a.os,
-        last_seen_at: a.lastSeenAt,
+        agent_version: a.agentVersion,
+        last_seen_at: lastContact(a),
+        heartbeat: a.lastHeartbeatAt !== null,
+        buffer_events: a.bufferEvents,
+        health: agentHealth(a),
         config_version: a.configVersion,
         config_applied_version: a.configAppliedVersion,
         config_fetched_at: a.configFetchedAt,

@@ -225,7 +225,7 @@
         </Control>
       </Dialog>
       <Dialog Id="SemTokenDlg" Width="260" Height="85" Title="[ProductName]">
-        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="35" NoPrefix="yes" Text="Informe o token de instalação. Ele é gerado no portal, na página da empresa, em Tokens de instalação."/>
+        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="35" NoPrefix="yes" Text="Informe o token de instalação. Ele é gerado no portal, em Servidores &gt; Adicionar servidor."/>
         <Control Id="OK" Type="PushButton" X="102" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="OK">
           <Publish Event="EndDialog" Value="Return" Condition="1"/>
         </Control>

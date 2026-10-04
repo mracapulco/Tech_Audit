@@ -2,11 +2,13 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BarList } from '@/components/bar-list';
 import { TimelineChart, type TimelinePoint } from '@/components/timeline-chart';
-import { TopBar } from '@/components/top-bar';
+import { Help } from '@/components/help';
+import { currentTenant, Workspace } from '@/components/workspace';
 import { ApiError, apiGet, isMsp, type CurrentUser } from '@/lib/api';
 import { ago, formatInt, health, userText } from '@/lib/dashboard';
 import { actionLabel, eventActionText, newPathText, formatDateTime, localToIso, PERIOD_PRESETS, presetRange, screenQuery, type SearchParams } from '@/lib/filters';
-import { formatBytes, formatLastDay, licenseStatus } from '@/lib/format';
+import { formatLastDay, licenseStatus } from '@/lib/format';
+import { tenantParam, withTenant } from '@/lib/workspace';
 
 export const metadata: Metadata = { title: 'Painel · Tech Audit' };
 
@@ -58,6 +60,7 @@ interface Dashboard {
   companies: Company[];
 }
 
+const PERIOD_TITLE: Record<string, string> = { '24h': 'Últimas 24 horas', '7d': 'Últimos 7 dias', '30d': 'Últimos 30 dias', '90d': 'Últimos 90 dias' };
 const BUCKET_TITLE = { hour: 'Eventos por hora', day: 'Eventos por dia', month: 'Eventos por mês' };
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)?.trim() ?? '';
 
@@ -65,8 +68,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const user = await apiGet<CurrentUser>('/api/auth/me');
   const msp = isMsp(user);
-  const tenants = msp ? await apiGet<{ id: string; name: string }[]>('/api/tenants') : [];
-  const cliente = msp ? one(sp.cliente) : '';
+  const cliente = msp ? tenantParam(sp) : '';
   const periodo = PERIOD_PRESETS.some((p) => p.key === one(sp.periodo)) ? one(sp.periodo) : '7d';
   const range = presetRange(periodo)!;
 
@@ -87,15 +89,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const reportLink = (tipo: string, extra: Record<string, string> = {}) => `/relatorios?${screenQuery({ ...filters, ...extra }, { tipo })}`;
   const periodLink = (key: string) => `/painel?${new URLSearchParams({ ...(cliente ? { cliente } : {}), periodo: key })}`;
   const showTenant = msp && !cliente;
-  const company = d && d.companies.length === 1 && d.tenant ? d.companies[0] : null;
-  const agents = d ? (showTenant ? d.agents.filter((a) => a.health === 'stale' || a.health === 'never') : d.agents) : [];
+  const attention = d ? d.agents.filter((a) => a.health === 'stale' || a.health === 'never') : [];
+  const late = d ? d.agents.filter((a) => a.health === 'late') : [];
 
   return (
     <>
-      <TopBar user={user} active="painel" />
-      <main className="page">
+      <Workspace user={user} tenantId={currentTenant(user, cliente)} tab="painel">
         <div className="title-row">
-          <h1>{d?.tenant?.name ?? (msp ? 'Todas as empresas' : 'Painel')}</h1>
+          <h2 className="page-title">{PERIOD_TITLE[periodo]}</h2>
           <nav className="segmented" aria-label="Período">
             {PERIOD_PRESETS.map((p) => (
               <Link key={p.key} href={periodLink(p.key)} className={p.key === periodo ? 'active' : undefined} aria-current={p.key === periodo ? 'true' : undefined}>
@@ -104,24 +105,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             ))}
           </nav>
         </div>
-
-        {msp && (
-          <form method="get" className="filter-row">
-            <input type="hidden" name="periodo" value={periodo} />
-            <label>
-              Empresa
-              <select name="cliente" defaultValue={cliente}>
-                <option value="">Todas as empresas</option>
-                {tenants.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="submit">Ver painel</button>
-          </form>
-        )}
 
         {error && (
           <p className="error" role="alert">
@@ -237,7 +220,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               )}
             </section>
 
-            {company && <LicenseCard c={company} />}
+            {!showTenant && attention.length + late.length > 0 && (
+              <p className="notice">
+                {attention.length > 0 && <strong className="fail">{attention.length === 1 ? '1 servidor parado' : `${attention.length} servidores parados`}</strong>}
+                {attention.length > 0 && late.length > 0 && ' e '}
+                {late.length > 0 && <strong className="warn-text">{late.length === 1 ? '1 sem sinal recente' : `${late.length} sem sinal recente`}</strong>}.{' '}
+                <Link href={withTenant('/servidores', cliente)}>Ver servidores</Link>
+              </p>
+            )}
 
             {showTenant && (
               <section className="section">
@@ -260,7 +250,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         return (
                           <tr key={c.id}>
                             <td>
-                              <Link href={`/painel?${new URLSearchParams({ cliente: c.id, periodo })}`}>{c.name}</Link>
+                              <Link href={withTenant('/painel', c.id, { periodo })}>{c.name}</Link>
                             </td>
                             <td>
                               <span className={`pill ${s.tone}`}>{s.label}</span>
@@ -280,22 +270,27 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </section>
             )}
 
+            {showTenant && (
             <section className="section">
-              <h2>{showTenant ? 'Agentes que precisam de atenção' : 'Servidores monitorados'}</h2>
-              <p className="muted small">
+              <div className="title-row">
+                <h2>
+                  Agentes que precisam de atenção
+                  <Help>
                 O agente atual manda um sinal de vida a cada minuto: &quot;Sem sinal recente&quot; aparece depois de 5 minutos sem contato e
                 &quot;Parado&quot; depois de 1 hora. Agentes antigos (sem sinal de vida) só falam com o servidor quando há eventos; para eles os
                 limites são 1 hora e 1 dia.
-              </p>
-              {agents.length === 0 ? (
-                <p className="card empty">{showTenant ? 'Todos os agentes estão enviando dados.' : 'Nenhum agente instalado ainda.'}</p>
+                  </Help>
+                </h2>
+              </div>
+              {attention.length === 0 ? (
+                <p className="card empty">Todos os agentes estão enviando dados.</p>
               ) : (
                 <div className="table-wrap">
                   <table>
                     <thead>
                       <tr>
                         <th>Servidor</th>
-                        {showTenant && <th>Empresa</th>}
+                        <th>Empresa</th>
                         <th>Situação</th>
                         <th>Último contato</th>
                         <th>Aguardando envio</th>
@@ -304,12 +299,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                       </tr>
                     </thead>
                     <tbody>
-                      {agents.map((a) => {
+                      {attention.map((a) => {
                         const h = health(a.health);
                         return (
                           <tr key={a.id} className={a.health === 'disabled' ? 'dim' : undefined}>
-                            <td>{a.hostname}</td>
-                            {showTenant && <td>{a.tenant_name}</td>}
+                            <td>
+                              <Link href={withTenant('/servidores', a.tenant_id)}>{a.hostname}</Link>
+                            </td>
+                            <td>{a.tenant_name}</td>
                             <td>
                               <span className={`pill ${h.tone}`}>{h.label}</span>
                             </td>
@@ -329,9 +326,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 </div>
               )}
             </section>
+            )}
           </>
         )}
-      </main>
+      </Workspace>
     </>
   );
 }
@@ -349,37 +347,5 @@ function Stat({ label, value, href, warn }: { label: string; value: number; href
     </Link>
   ) : (
     <div className="card stat">{body}</div>
-  );
-}
-
-function LicenseCard({ c }: { c: Company }) {
-  const s = licenseStatus(c.license.status);
-  const used = c.license.max_agents ? Math.min(c.license.active_agents / c.license.max_agents, 1) : 0;
-  return (
-    <section className="card section">
-      <div className="title-row">
-        <h2>Licença</h2>
-        <span className={`pill ${s.tone}`}>{s.label}</span>
-      </div>
-      <div className="summary">
-        <div className="stat">
-          <span className="muted small">Servidores em uso</span>
-          <strong>
-            {c.license.active_agents} de {c.license.max_agents}
-          </strong>
-          <div className="meter" role="meter" aria-valuenow={c.license.active_agents} aria-valuemin={0} aria-valuemax={c.license.max_agents} aria-label="Servidores em uso">
-            <div className={used >= 1 ? 'meter-fill full' : 'meter-fill'} style={{ width: `${used * 100}%` }} />
-          </div>
-        </div>
-        <div className="stat">
-          <span className="muted small">Volume contratado</span>
-          <strong>{c.license.max_agents ? formatBytes(c.license.max_volume_bytes) : '-'}</strong>
-        </div>
-        <div className="stat">
-          <span className="muted small">Vigente até</span>
-          <strong>{formatLastDay(c.license.valid_until)}</strong>
-        </div>
-      </div>
-    </section>
   );
 }

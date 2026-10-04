@@ -272,12 +272,14 @@ Estimativa baseada em ~100 a 200 bytes por evento antes da compressão e taxa de
 
 ## 7. Portal web
 
+Organização das telas ("espaço da empresa"): a empresa é escolhida uma vez na barra superior (a Tech Master troca por ali; o cliente só vê a própria) e tudo dela fica em abas: Painel, Eventos, Relatórios, Servidores e, só para o administrador da Tech Master, Usuários e Licença e contrato. Sem empresa escolhida, a Tech Master vê "Todas as empresas" (Painel, Eventos e Relatórios somando todas). As telas só da Tech Master (Empresas, Equipe Tech Master, Instaladores do agente, Limpeza de dados) ficam no menu "Tech Master". A empresa vai no parâmetro `cliente` da URL. Ações de cada linha ficam no menu ⋯ e cadastros/edições abrem num painel lateral.
+
 Funcionalidades do MVP:
 
 - **Dashboard** do tenant: agentes online/offline, eventos por dia, top usuários, top pastas, alertas recentes, status da configuração de auditoria.
 - **Pesquisa de eventos**: filtros por período, servidor, compartilhamento, caminho (com subpastas), usuário, ação, resultado, IP. Paginação por cursor (keyset), nunca `OFFSET`.
 - **Linha do tempo de um arquivo/pasta** e **linha do tempo de um usuário**.
-- **Caminhos auditados**: escolher servidor e caminho (a partir do inventário), opções de auditoria, status de aplicação e histórico de alterações (seção 4.6).
+- **Servidores** (antes "Caminhos auditados"): situação de cada agente junto com as pastas auditadas; escolher servidor e caminho (a partir do inventário), opções de auditoria, status de aplicação e histórico de alterações (seção 4.6).
 - **Inventário**: compartilhamentos, permissões efetivas, espaço utilizado, histórico de mudanças de ACL.
 - **Relatórios**: exportação CSV/XLSX/PDF gerada de forma assíncrona (job no worker, arquivo no MinIO, link por e-mail). Relatórios agendados (ex.: semanal de exclusões).
 - **Alertas** (fase 2): exclusão em massa, renomeação em massa com extensões suspeitas, alteração de permissão em pastas sensíveis, log de segurança limpo, agente offline.
@@ -344,7 +346,7 @@ Regras:
 - Um único **MSI genérico, assinado** com o certificado de code signing da Tech Master. O instalador não contém segredos.
 - O download só acontece **pelo portal autenticado** (Tech Master e administrador do cliente; o auditor do cliente não baixa), registrado no log de acesso do portal (`portal_audit_log`, ação `agent.download`: quem, quando, versão, hash, IP).
 - O MSI tem um **assistente em português** que pede o endereço do servidor e o token; a mesma tela do portal mostra o endereço a digitar e o SHA-256 do arquivo.
-- O **token de registro** é gerado pela Tech Master na página da empresa (validade curta, número máximo de usos). Ao gerar, o portal mostra o token, o endereço do servidor e o comando de instalação silenciosa já com o token.
+- O **token de registro** é gerado pela Tech Master no assistente "Adicionar servidor" da aba Servidores (validade curta, número máximo de usos; o assistente também mostra os downloads e avisa quando o servidor se registra). Ao gerar, o portal mostra o token, o endereço do servidor e o comando de instalação silenciosa já com o token.
 - Os tokens podem ser revogados a qualquer momento, e cada uso fica registrado.
 - O agente valida o certificado do servidor contra a **CA do Tech Audit embutida no binário** (pinning). Assim ele não pode ser apontado para um servidor não autorizado.
 - O heartbeat envia a versão e o hash do binário. Versões não assinadas, adulteradas ou muito antigas aparecem no portal MSP e podem ser bloqueadas.
