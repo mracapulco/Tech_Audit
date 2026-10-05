@@ -116,7 +116,7 @@ export class PermissionsController {
     const body =
       format === 'xlsx'
         ? reportXlsx(t, [{ table: appendix, sheet: 'Membros dos grupos' }], 'Permissões')
-        : await reportPdf(t, `Tech Audit · Inventário de permissões · ${tenant.name}`, [appendix]);
+        : await reportPdf(t, [appendix]);
     res.setHeader('content-type', CONTENT_TYPE[format]);
     res.setHeader('content-disposition', `attachment; filename="permissoes-${stamp}.${format}"`);
     res.setHeader('cache-control', 'no-store');

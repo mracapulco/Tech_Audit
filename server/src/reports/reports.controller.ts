@@ -74,7 +74,7 @@ export class ReportsController {
 
     if (format === 'json') return t;
     const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-    const body = format === 'xlsx' ? reportXlsx(t) : await reportPdf(t, `Tech Audit · ${t.title} · ${t.info[0]}`);
+    const body = format === 'xlsx' ? reportXlsx(t) : await reportPdf(t);
     res.setHeader('content-type', CONTENT_TYPE[format]);
     res.setHeader('content-disposition', `attachment; filename="relatorio-${type}-${stamp}.${format}"`);
     res.setHeader('cache-control', 'no-store');
