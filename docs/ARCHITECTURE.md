@@ -324,11 +324,12 @@ Cada tenant tem uma ou mais licenças (`licenses`), criadas apenas por `msp_admi
 | Retenção padrão (pode ser alterada na licença) | 90 dias | 1 ano | 5 anos |
 | Alterações, painel, consulta e relatórios Excel/PDF | sim | sim | sim |
 | Auditoria de leitura (quem abriu o arquivo) | não | sim | sim |
-| Alertas por e-mail e relatórios agendados (a construir) | não | sim | sim |
+| Alertas por e-mail e relatórios agendados | não | sim | sim |
 | Inventário de permissões (a construir) | não | não | sim |
 
 - Com várias licenças vigentes, vale o recurso de qualquer uma delas. Um nome de plano fora da lista não perde recursos.
 - No Essencial, o portal e a API recusam ligar a auditoria de leitura em um caminho. Se o plano for rebaixado, a leitura que já estava ligada continua; ela só não pode ser ligada de novo depois de desligada.
+- **Alertas e relatórios por e-mail** (aba "Alertas e e-mails", `server/src/notifications/`): um laço a cada minuto no servidor detecta servidor sem contato (mesma regra do painel: 1 h sem sinal de vida; aviso de novo quando volta), exclusão em massa (padrão: 100 exclusões ou envios para a Lixeira do mesmo usuário em 10 minutos, ajustável por empresa) e junta os alertas novos de cada empresa num e-mail só (volume 80%/100%, erros e divergências da auditoria e, se ligado, auditoria aplicada/removida). Relatórios agendados: diário (dia anterior), semanal (7 dias anteriores) ou mensal (mês anterior, no dia 1º), em PDF ou Excel anexado, com os filtros do relatório. Tudo fica em `email_deliveries`. No Essencial o portal e a API recusam cadastrar; agendamentos de um plano rebaixado ficam registrados como "pulados". O servidor de e-mail é configurado no portal (menu Tech Master > Servidor de e-mail): Microsoft 365 pela Graph com OAuth de aplicativo (autenticação moderna) ou SMTP; senha e segredo criptografados com `SECRETS_KEY` (docs/DEPLOY.md).
 
 Regras:
 

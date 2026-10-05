@@ -4,6 +4,7 @@ import { ActionSelect } from '@/components/action-select';
 import { currentTenant, Workspace } from '@/components/workspace';
 import { ApiError, apiGet, type CurrentUser } from '@/lib/api';
 import { formatInt, REPORT_TYPES } from '@/lib/dashboard';
+import { withTenant } from '@/lib/workspace';
 import { apiParams, formatDateTime, PERIOD_PRESETS, presetRange, screenFilters, screenQuery, type SearchParams } from '@/lib/filters';
 
 export const metadata: Metadata = { title: 'Relatórios · Tech Audit' };
@@ -36,10 +37,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   }
 
   const download = (formato: string) => `/relatorios/exportar?${screenQuery(f, { tipo, formato })}`;
+  const tenantId = currentTenant(user, f.cliente);
+  // Leva os filtros (sem o período) para o agendamento por e-mail.
+  const schedule = withTenant('/alertas', f.cliente, { agendar: tipo, usuario: f.usuario, caminho: f.caminho, acao: f.acao });
 
   return (
     <>
-      <Workspace user={user} tenantId={currentTenant(user, f.cliente)} tab="relatorios">
+      <Workspace user={user} tenantId={tenantId} tab="relatorios">
         <h2 className="page-title">Relatórios</h2>
 
         <nav className="tabs" aria-label="Tipo de relatório">
@@ -101,6 +105,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 <a className="button secondary" href={download('pdf')} download>
                   Baixar PDF
                 </a>
+                {tenantId && (
+                  <Link className="small" href={schedule}>
+                    Agendar por e-mail
+                  </Link>
+                )}
               </div>
             </div>
             <p className="muted small">
