@@ -257,6 +257,55 @@ export default async function PermissionsPage({ searchParams }: { searchParams: 
                   </div>
                 </section>
               )}
+
+              {view.groups.length > 0 && (
+                <section className="section">
+                  <h2>
+                    Apêndice: membros dos grupos citados
+                    <Help label="Sobre o apêndice">
+                      Quem faz parte de cada grupo que aparece nas permissões acima, inclusive pelos grupos que estão dentro dele (coluna
+                      &quot;Como faz parte&quot;). Grupos especiais do Windows, como Todos e Usuários autenticados, não têm lista: valem para qualquer
+                      conta do tipo descrito. O Excel traz o apêndice na planilha &quot;Membros dos grupos&quot; e o PDF, nas últimas páginas.
+                    </Help>
+                  </h2>
+                  <div className="table-wrap">
+                    <table className="perm-table">
+                      <thead>
+                        <tr>
+                          <th>Membro</th>
+                          <th>Tipo</th>
+                          <th>Como faz parte</th>
+                        </tr>
+                      </thead>
+                      {view.groups.map((g) => (
+                        <tbody key={g.sid ?? g.name}>
+                          <tr className="perm-folder">
+                            <th colSpan={3} scope="colgroup">
+                              <span>{g.name}</span>
+                              <span className="muted small">{g.members.length === 1 ? '1 membro' : `${formatInt(g.members.length)} membros`}</span>
+                              {g.truncated && <span className="pill warn">Lista cortada</span>}
+                            </th>
+                          </tr>
+                          {(g.note || g.error || g.members.length === 0) && (
+                            <tr>
+                              <td colSpan={3} className={`small ${g.error ? 'fail' : 'muted'}`}>
+                                {g.error ? `Não foi possível listar os membros: ${g.error}` : (g.note ?? 'Nenhum membro.')}
+                              </td>
+                            </tr>
+                          )}
+                          {g.members.map((m, i) => (
+                            <tr key={i}>
+                              <td>{m.name}</td>
+                              <td className="small">{kindLabel(m.kind)}</td>
+                              <td className="small">{m.via ? `Pelo grupo ${m.via}` : 'Direto'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      ))}
+                    </table>
+                  </div>
+                </section>
+              )}
             </>
           )}
         </>

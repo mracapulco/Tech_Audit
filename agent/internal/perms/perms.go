@@ -59,4 +59,6 @@ type Reader interface {
 	// Shares devolve os compartilhamentos ligados ao caminho (o próprio
 	// caminho, uma pasta acima dele ou dentro dele).
 	Shares(root string) ([]Folder, error)
+	// Members lista os membros diretos de um grupo (SID ou nome).
+	Members(name, sid string) (GroupInfo, error)
 }

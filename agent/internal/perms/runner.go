@@ -39,6 +39,8 @@ type Upload struct {
 	Truncated  bool      `json:"truncated"`
 	Error      string    `json:"error,omitempty"`
 	Folders    []Folder  `json:"folders"`
+	// Groups vai só na última parte: membros dos grupos citados.
+	Groups []GroupInfo `json:"groups,omitempty"`
 }
 
 // PartSize é o número de pastas por envio.
@@ -156,7 +158,11 @@ func (r *Runner) RunOnce(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		if err := r.upload(ctx, p, res.started, res.Result); err != nil {
+		var groups []GroupInfo
+		if res.Err == nil {
+			groups = CollectGroups(r.Reader, res.Folders)
+		}
+		if err := r.upload(ctx, p, res.started, res.Result, groups); err != nil {
 			r.Logf("inventário de permissões de %s: envio falhou: %v", p.Path, err)
 			failed = true
 			continue
@@ -196,7 +202,7 @@ func (r *Runner) scan(ctx context.Context, p Path) scanned {
 	return scanned{Result: Scan(ctx, r.Reader, p.Path, r.Options), started: started}
 }
 
-func (r *Runner) upload(ctx context.Context, p Path, started time.Time, res Result) error {
+func (r *Runner) upload(ctx context.Context, p Path, started time.Time, res Result, groups []GroupInfo) error {
 	id, err := newID()
 	if err != nil {
 		return err
@@ -211,6 +217,9 @@ func (r *Runner) upload(ctx context.Context, p Path, started time.Time, res Resu
 		u.Part, u.Folders, u.Final = part, folders[:n], n == len(folders)
 		if u.Folders == nil {
 			u.Folders = []Folder{}
+		}
+		if u.Final {
+			u.Groups = groups
 		}
 		if err := r.Send(ctx, u); err != nil {
 			return err

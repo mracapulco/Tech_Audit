@@ -237,6 +237,15 @@ func (r fakeReader) Read(path string) (Folder, error) {
 	return f, nil
 }
 func (fakeReader) Differs(c, p *Folder) string { return DiffersNTFS(c, p) }
+func (fakeReader) Members(name, sid string) (GroupInfo, error) {
+	switch name {
+	case "Financeiro":
+		return GroupInfo{Name: `CORP\Financeiro`, SID: "S-1-5-21-1-2-3-2001", Members: []Member{{Name: `CORP\joao`, Kind: "user"}, {Name: `CORP\Gerentes`, SID: "S-1-5-21-1-2-3-2002", Kind: "group"}}}, nil
+	case `CORP\Gerentes`:
+		return GroupInfo{Members: []Member{{Name: `CORP\maria`, Kind: "user"}, {Name: `CORP\Financeiro`, SID: "S-1-5-21-1-2-3-2001", Kind: "group"}}}, nil
+	}
+	return GroupInfo{}, errors.New("grupo não encontrado")
+}
 func (fakeReader) Shares(root string) ([]Folder, error) {
 	return []Folder{{Path: root, Share: "Dados", Entries: []Entry{{Principal: "Todos"}}}}, nil
 }
@@ -368,5 +377,31 @@ func itoa(i int) string {
 		if i == 0 {
 			return s
 		}
+	}
+}
+
+func TestCollectGroups(t *testing.T) {
+	folders := []Folder{{Entries: []Entry{
+		{Principal: "Financeiro", Kind: "group"},
+		{Principal: "joao", Kind: "user"},
+		{Principal: "Sumiu (grupo dono)", SID: "gid:9", Kind: "group"},
+		{Principal: "Financeiro", Kind: "group"},
+	}}}
+	g := CollectGroups(fakeReader{}, folders)
+	if len(g) != 3 {
+		t.Fatalf("grupos: %+v", g)
+	}
+	if g[0].Name != `CORP\Financeiro` || len(g[0].Members) != 2 {
+		t.Errorf("Financeiro: %+v", g[0])
+	}
+	if g[1].Name != "Sumiu" || g[1].Error == "" || g[1].Members == nil {
+		t.Errorf("grupo sem membros: %+v", g[1])
+	}
+	// Gerentes entra por estar dentro de Financeiro; o ciclo não repete Financeiro.
+	if g[2].Name != `CORP\Gerentes` || g[2].SID != "S-1-5-21-1-2-3-2002" {
+		t.Errorf("aninhado: %+v", g[2])
+	}
+	if name, gid, m := parseGroupLine("financeiro:x:2000:joao,maria"); name != "financeiro" || gid != "2000" || len(m) != 2 {
+		t.Errorf("getent: %s %s %v", name, gid, m)
 	}
 }

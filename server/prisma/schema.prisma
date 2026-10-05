@@ -383,6 +383,7 @@ model PermissionScan {
   finishedAt      DateTime?         @map("finished_at")
   receivedAt      DateTime          @default(now()) @map("received_at")
   entries         PermissionEntry[]
+  groupMembers    PermissionGroupMember[]
 
   @@index([auditedPathId, receivedAt])
   @@index([tenantId])
@@ -419,4 +420,26 @@ model PermissionEntry {
 
   @@index([scanId])
   @@map("permission_entries")
+}
+
+// Quem faz parte de cada grupo citado nas permissões de uma coleta (apêndice
+// do relatório). Uma linha por membro direto; grupo sem membros (ou com erro,
+// ou especial como "Todos") vira uma linha sem membro.
+model PermissionGroupMember {
+  id         BigInt         @id @default(autoincrement())
+  scanId     String         @map("scan_id") @db.Uuid
+  scan       PermissionScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  groupName  String         @map("group_name")
+  groupSid   String?        @map("group_sid")
+  note       String?
+  error      String?
+  // Lista cortada no limite de membros do agente.
+  truncated  Boolean        @default(false)
+  memberName String?        @map("member_name")
+  memberSid  String?        @map("member_sid")
+  // user, group ou unknown.
+  memberKind String?        @map("member_kind")
+
+  @@index([scanId])
+  @@map("permission_group_members")
 }

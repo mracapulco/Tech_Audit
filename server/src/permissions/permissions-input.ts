@@ -6,6 +6,9 @@ export class PermissionsInputError extends Error {}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_FOLDERS = 1000;
 const MAX_ENTRIES = 2000;
+const MAX_GROUPS = 300;
+const MAX_MEMBERS = 2000;
+export const MEMBER_KINDS = ['user', 'group', 'unknown'] as const;
 
 export const SOURCES = ['ntfs', 'posix', 'share'] as const;
 export const REASONS = ['root', 'explicit', 'protected', 'changed', 'share', 'error'] as const;
@@ -31,6 +34,17 @@ export interface PermissionRow {
   appliesTo: string | null;
 }
 
+export interface GroupMemberRow {
+  groupName: string;
+  groupSid: string | null;
+  note: string | null;
+  error: string | null;
+  truncated: boolean;
+  memberName: string | null;
+  memberSid: string | null;
+  memberKind: string | null;
+}
+
 export interface PermissionUpload {
   scanId: string;
   pathId: string;
@@ -43,6 +57,8 @@ export interface PermissionUpload {
   error: string | null;
   folders: number;
   rows: PermissionRow[];
+  // Membros dos grupos citados (só na última parte).
+  groupRows: GroupMemberRow[];
 }
 
 const obj = (v: unknown, what: string): Record<string, unknown> => {
@@ -113,7 +129,25 @@ export function parsePermissionUpload(body: unknown): PermissionUpload {
       });
     }
   }
+  const groupRows: GroupMemberRow[] = [];
+  for (const raw of list(b.groups, 'groups', MAX_GROUPS)) {
+    const g = obj(raw, 'grupo');
+    const base = {
+      groupName: text(g.name, 512) ?? '(sem nome)',
+      groupSid: text(g.sid, 255),
+      note: text(g.note, 1000),
+      error: text(g.error, 2000),
+      truncated: g.truncated === true,
+    };
+    const members = list(g.members, 'members', MAX_MEMBERS);
+    if (members.length === 0) groupRows.push({ ...base, memberName: null, memberSid: null, memberKind: null });
+    for (const rm of members) {
+      const m = obj(rm, 'membro');
+      groupRows.push({ ...base, memberName: text(m.name, 512) ?? '(sem nome)', memberSid: text(m.sid, 255), memberKind: oneOf(m.kind, MEMBER_KINDS, 'unknown') });
+    }
+  }
   return {
+    groupRows,
     scanId: b.scan_id.toLowerCase(),
     pathId: b.path_id.toLowerCase(),
     part: int(b.part, 'part', 100_000),

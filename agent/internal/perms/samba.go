@@ -63,7 +63,7 @@ func FromSamba(sh samba.Share) Folder {
 		if readOnly {
 			label, raw = "Leitura", "read only = yes"
 		}
-		f.Entries = append(f.Entries, Entry{Principal: who, Kind: "group", Access: "allow", Rights: label, Raw: raw, AppliesTo: "Compartilhamento"})
+		f.Entries = append(f.Entries, Entry{Principal: who, Kind: "other", Access: "allow", Rights: label, Raw: raw, AppliesTo: "Compartilhamento"})
 	}
 	for _, n := range valid {
 		label, raw := rights(n)

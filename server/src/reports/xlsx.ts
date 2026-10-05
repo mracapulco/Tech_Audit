@@ -72,20 +72,30 @@ function sheetXml(t: ReportTable): string {
 </worksheet>`;
 }
 
-export function reportXlsx(t: ReportTable): Buffer {
+// extra são planilhas a mais no mesmo arquivo (ex.: apêndice).
+export function reportXlsx(t: ReportTable, extra: { table: ReportTable; sheet: string }[] = [], sheet = 'Relatório'): Buffer {
+  const sheets = [{ table: t, sheet }, ...extra];
+  const n = sheets.map((_, i) => i + 1);
   return zip([
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${n.map((i) => `<Override PartName="/xl/worksheets/sheet${i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
     ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
     ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Relatório" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets
+      .map((x, i) => `<sheet name="${esc(sheetName(x.sheet))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
+      .join('')}</sheets></workbook>`],
     ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${n
+      .map((i) => `<Relationship Id="rId${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i}.xml"/>`)
+      .join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
     ['xl/styles.xml', STYLES],
-    ['xl/worksheets/sheet1.xml', sheetXml(t)],
+    ...sheets.map((x, i): [string, string] => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(x.table)]),
   ]);
 }
+
+// O Excel recusa nomes de planilha com []:*?/\ ou com mais de 31 caracteres.
+const sheetName = (s: string) => s.replace(/[[\]:*?/\\]/g, ' ').slice(0, 31);
 
 // ZIP com compressão deflate (o mínimo que o Excel exige).
 export function zip(files: [string, string | Buffer][]): Buffer {

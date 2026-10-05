@@ -48,6 +48,15 @@ export interface PermAgent {
   paths: { id: string; path: string; scan: ScanInfo | null }[];
 }
 
+export interface AppendixGroup {
+  name: string;
+  sid: string | null;
+  note: string | null;
+  error: string | null;
+  truncated: boolean;
+  members: { name: string; sid: string | null; kind: string; via: string | null }[];
+}
+
 export interface PermView {
   allowed: boolean;
   interval_hours: number;
@@ -55,6 +64,8 @@ export interface PermView {
   rows: PermRow[];
   removed: PermRow[];
   truncated: boolean;
+  // Apêndice: membros dos grupos citados.
+  groups: AppendixGroup[];
 }
 
 export interface PermFilters {

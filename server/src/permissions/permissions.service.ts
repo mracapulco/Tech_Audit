@@ -6,7 +6,8 @@ import { LicenseService } from '../licensing/license.service.js';
 import { permissionsInventoryAllowed } from '../licensing/plans.js';
 import { PrismaService } from '../prisma.service.js';
 import { formatDateTime, type ReportColumn, type ReportTable } from '../reports/table.js';
-import type { PermissionUpload } from './permissions-input.js';
+import { buildAppendix, type AppendixGroup, type GroupRecord } from './group-appendix.js';
+import type { GroupMemberRow, PermissionUpload } from './permissions-input.js';
 
 // Inventário de permissões (plano Enterprise): quem tem acesso a cada pasta
 // auditada. O agente coleta uma vez por dia (ou quando pedem "Atualizar
@@ -143,19 +144,22 @@ export class PermissionsService {
         u.folders,
       ]);
       if (u.final) {
+        if (u.groupRows.length) await insertGroupRows(c, u.scanId, u.groupRows);
         await c.query(
           `UPDATE permission_scans SET status = $2, finished_at = $3, folders_scanned = $4, truncated = $5, error = $6 WHERE id = $1`,
           [u.scanId, u.error ? 'error' : 'complete', u.finishedAt, u.scanned, u.truncated, u.error],
         );
         await c.query('UPDATE agents SET permissions_scanned_at = now(), last_seen_at = now() WHERE id = $1', [agent.id]);
         // Guarda as linhas só das duas últimas coletas completas do caminho.
-        await c.query(
-          `DELETE FROM permission_entries WHERE scan_id IN (
-             SELECT id FROM permission_scans
-             WHERE audited_path_id = $1 AND status <> 'running' AND id NOT IN (
-               SELECT id FROM permission_scans WHERE audited_path_id = $1 AND status = 'complete' ORDER BY received_at DESC LIMIT 2))`,
-          [u.pathId],
-        );
+        for (const table of ['permission_entries', 'permission_group_members']) {
+          await c.query(
+            `DELETE FROM ${table} WHERE scan_id IN (
+               SELECT id FROM permission_scans
+               WHERE audited_path_id = $1 AND status <> 'running' AND id NOT IN (
+                 SELECT id FROM permission_scans WHERE audited_path_id = $1 AND status = 'complete' ORDER BY received_at DESC LIMIT 2))`,
+            [u.pathId],
+          );
+        }
         // Coletas que nunca terminaram (agente reiniciado no meio).
         await c.query(`DELETE FROM permission_scans WHERE agent_id = $1 AND status = 'running' AND received_at < now() - interval '2 days'`, [agent.id]);
       }
@@ -248,7 +252,7 @@ export class PermissionsService {
 
   // Permissões da última coleta de cada caminho, com a marca do que é novo
   // desde a coleta anterior; removed traz o que existia antes e sumiu.
-  async rows(f: PermissionFilters, limit: number): Promise<{ rows: PermissionRowJson[]; truncated: boolean; removed: PermissionRowJson[] }> {
+  async rows(f: PermissionFilters, limit: number): Promise<{ rows: PermissionRowJson[]; truncated: boolean; removed: PermissionRowJson[]; groups: AppendixGroup[] }> {
     const values: unknown[] = [f.tenantId];
     const scope: string[] = ['s.tenant_id = $1', `ap.desired_state = 'active'`];
     if (f.agentId) {
@@ -259,6 +263,7 @@ export class PermissionsService {
       values.push(f.pathId);
       scope.push(`s.audited_path_id = $${values.length}`);
     }
+    const scopeValues = [...values];
     const where: string[] = [];
     if (f.q) {
       values.push(`%${f.q.replace(/[\\%_]/g, (m) => '\\' + m)}%`);
@@ -315,13 +320,21 @@ export class PermissionsService {
        LIMIT 200`,
       values,
     );
-    const rows = current.rows;
-    return { rows: rows.slice(0, limit), truncated: rows.length > limit, removed: removed.rows };
+    const groupRecords = await this.pg.query<GroupRecord>(
+      `${ctes}
+       SELECT gm.group_name, gm.group_sid, gm.note, gm.error, gm.truncated, gm.member_name, gm.member_sid, gm.member_kind
+       FROM latest l JOIN permission_group_members gm ON gm.scan_id = l.id
+       ORDER BY gm.id`,
+      scopeValues,
+    );
+    const rows = current.rows.slice(0, limit);
+    return { rows, truncated: current.rows.length > limit, removed: removed.rows, groups: buildAppendix(rows, groupRecords.rows) };
   }
 
   // Tabela para Excel e PDF.
-  async table(f: PermissionFilters, max: number, ctx: { tenantName: string; userName: string; now?: Date }): Promise<ReportTable> {
-    const { rows, truncated, removed } = await this.rows(f, max);
+  // Tabela principal e o apêndice com os membros dos grupos citados.
+  async table(f: PermissionFilters, max: number, ctx: { tenantName: string; userName: string; now?: Date }): Promise<{ main: ReportTable; appendix: ReportTable }> {
+    const { rows, truncated, removed, groups } = await this.rows(f, max);
     const filters: string[] = [];
     if (f.q) filters.push(`contém "${f.q}"`);
     if (f.explicitOnly) filters.push('só permissões definidas na própria pasta');
@@ -344,7 +357,7 @@ export class PermissionsService {
       owner: r.owner,
       status: status || r.folder_error || '',
     });
-    return {
+    const main: ReportTable = {
       title: 'Inventário de permissões',
       info,
       columns: [
@@ -363,8 +376,43 @@ export class PermissionsService {
       rows: [...rows.map((r) => cell(r, r.is_new ? 'Nova desde a coleta anterior' : '')), ...removed.map((r) => cell(r, 'Removida desde a coleta anterior'))],
       truncated,
     };
+    return { main, appendix: appendixTable(groups, ctx.tenantName) };
   }
 }
+
+// Apêndice: uma linha por membro; grupo sem lista vira uma linha com a observação.
+export function appendixTable(groups: AppendixGroup[], tenantName: string): ReportTable {
+  const rows: ReportTable['rows'] = [];
+  for (const g of groups) {
+    const obs = [g.note, g.error && `Não foi possível listar: ${g.error}`, g.truncated && 'Lista cortada no limite de membros'].filter(Boolean).join('; ');
+    if (g.members.length === 0) {
+      rows.push({ group: g.name, member: obs ? null : '(nenhum membro)', kind: null, via: null, obs });
+      continue;
+    }
+    g.members.forEach((m, i) => {
+      rows.push({ group: g.name, member: m.name, kind: MEMBER_KIND_LABELS[m.kind] ?? m.kind, via: m.via ? `Pelo grupo ${m.via}` : 'Direto', obs: i === 0 ? obs : '' });
+    });
+  }
+  return {
+    title: 'Apêndice: membros dos grupos citados',
+    info: [
+      `Empresa: ${tenantName}`,
+      'Quem faz parte de cada grupo que aparece no inventário, inclusive pelos grupos que estão dentro dele (coluna "Como faz parte").',
+      'Grupos especiais do Windows, como Todos e Usuários autenticados, não têm lista de membros: valem para qualquer conta do tipo descrito.',
+    ],
+    columns: [
+      { key: 'group', label: 'Grupo', kind: 'text' },
+      { key: 'member', label: 'Membro', kind: 'text' },
+      { key: 'kind', label: 'Tipo', kind: 'text' },
+      { key: 'via', label: 'Como faz parte', kind: 'text' },
+      { key: 'obs', label: 'Observação', kind: 'text' },
+    ],
+    rows,
+    truncated: false,
+  };
+}
+
+const MEMBER_KIND_LABELS: Record<string, string> = { user: 'Usuário', group: 'Grupo', unknown: 'Desconhecido' };
 
 type Client = pg.PoolClient;
 
@@ -395,5 +443,14 @@ async function insertRows(c: Client, scanId: string, rows: PermissionUpload['row
       col('inherited'),
       col('appliesTo'),
     ],
+  );
+}
+
+async function insertGroupRows(c: Client, scanId: string, rows: GroupMemberRow[]) {
+  const col = <K extends keyof GroupMemberRow>(k: K) => rows.map((r) => r[k]);
+  await c.query(
+    `INSERT INTO permission_group_members (scan_id, group_name, group_sid, note, error, truncated, member_name, member_sid, member_kind)
+     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::bool[], $7::text[], $8::text[], $9::text[])`,
+    [scanId, col('groupName'), col('groupSid'), col('note'), col('error'), col('truncated'), col('memberName'), col('memberSid'), col('memberKind')],
   );
 }

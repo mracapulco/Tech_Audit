@@ -134,9 +134,10 @@ func aclEntries(acl []ACLEntry, uid, gid uint32, names Names, applies string) []
 	}
 	// Na ACL padrão, dono e grupo são os de quem criar o item novo.
 	owner, ownerID := names.User(uid)+" (dono)", fmt.Sprintf("uid:%d", uid)
-	group, groupID := names.Group(gid)+" (grupo dono)", fmt.Sprintf("gid:%d", gid)
+	group, groupID, groupKind := names.Group(gid)+" (grupo dono)", fmt.Sprintf("gid:%d", gid), "group"
 	if applies == appliesNewItems {
-		owner, ownerID, group, groupID = "Dono do item novo", "", "Grupo do item novo", ""
+		// Não é um grupo de verdade: é o grupo que o item novo receber.
+		owner, ownerID, group, groupID, groupKind = "Dono do item novo", "", "Grupo do item novo", "", "other"
 	}
 	var out []Entry
 	for _, e := range acl {
@@ -146,7 +147,7 @@ func aclEntries(acl []ACLEntry, uid, gid uint32, names Names, applies string) []
 		case aclUser:
 			out = append(out, posixEntry(names.User(e.ID), fmt.Sprintf("uid:%d", e.ID), "user", e.Perm&mask, applies))
 		case aclGroupObj:
-			out = append(out, posixEntry(group, groupID, "group", e.Perm&mask, applies))
+			out = append(out, posixEntry(group, groupID, groupKind, e.Perm&mask, applies))
 		case aclGroup:
 			out = append(out, posixEntry(names.Group(e.ID), fmt.Sprintf("gid:%d", e.ID), "group", e.Perm&mask, applies))
 		case aclOther:
@@ -175,4 +176,21 @@ func DiffersPosix(child, parent *Folder) string {
 		return "changed"
 	}
 	return ""
+}
+
+// parseGroupLine lê uma linha do getent group: nome:x:gid:membro1,membro2.
+func parseGroupLine(line string) (name, gid string, members []string) {
+	f := strings.SplitN(line, ":", 4)
+	if len(f) < 3 {
+		return line, "", nil
+	}
+	name, gid = f[0], f[2]
+	if len(f) == 4 && f[3] != "" {
+		for _, m := range strings.Split(f[3], ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				members = append(members, m)
+			}
+		}
+	}
+	return name, gid, members
 }

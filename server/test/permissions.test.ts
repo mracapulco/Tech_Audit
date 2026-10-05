@@ -230,13 +230,37 @@ describe('inventário de permissões', { skip }, () => {
   });
 
   it('exporta Excel e PDF', async () => {
-    await json(await upload(tokenE, scanBody(pathE, randomUUID(), [root([ent('CORP\\Financeiro', 'Controle total'), ent('CORP\\Diretoria', 'Leitura')])])));
+    const groups = [
+      { name: 'CORP\\Financeiro', sid: 'S-1-5-21-9-2001', members: [{ name: 'CORP\\ana', kind: 'user' }, { name: 'CORP\\Gerentes', sid: 'S-1-5-21-9-2002', kind: 'group' }] },
+      { name: 'CORP\\Gerentes', sid: 'S-1-5-21-9-2002', members: [{ name: 'CORP\\bruno', kind: 'user' }] },
+      { name: 'CORP\\Diretoria', error: 'controlador do domínio não encontrado', members: [] },
+    ];
+    await json(
+      await upload(
+        tokenE,
+        scanBody(pathE, randomUUID(), [root([ent('CORP\\Financeiro', 'Controle total', { sid: 'S-1-5-21-9-2001' }), ent('CORP\\Diretoria', 'Leitura')])], { groups }),
+      ),
+    );
+    const v = await json(await call('GET', '/api/permissions', auditor));
+    assert.deepEqual(
+      v.groups.map((g: { name: string; members: { name: string; via: string | null }[] }) => [g.name, g.members.map((m) => `${m.name}${m.via ? ' via ' + m.via : ''}`)]),
+      [
+        ['CORP\\Diretoria', []],
+        ['CORP\\Financeiro', ['CORP\\ana', 'CORP\\Gerentes', 'CORP\\bruno via CORP\\Gerentes']],
+      ],
+      'só os grupos citados, com os membros dos grupos de dentro',
+    );
     const x = await call('GET', '/api/permissions/export?format=xlsx', auditor);
     assert.equal(x.status, 200);
     const files = unzip(Buffer.from(await x.arrayBuffer()));
-    const sheet = [...files.entries()].find(([k]) => k.includes('worksheets'))![1];
+    const sheet = files.get('xl/worksheets/sheet1.xml')!;
     assert.match(sheet, /CORP\\Diretoria/);
     assert.match(sheet, /Nova desde a coleta anterior/);
+    const sheet2 = files.get('xl/worksheets/sheet2.xml')!;
+    assert.match(sheet2, /Apêndice: membros dos grupos citados/);
+    assert.match(sheet2, /CORP\\bruno/);
+    assert.match(sheet2, /Pelo grupo CORP\\Gerentes/);
+    assert.match(files.get('xl/workbook.xml')!, /Membros dos grupos/);
     const p = await call('GET', '/api/permissions/export?format=pdf', auditor);
     assert.equal(p.status, 200);
     assert.equal(Buffer.from(await p.arrayBuffer()).subarray(0, 4).toString(), '%PDF');

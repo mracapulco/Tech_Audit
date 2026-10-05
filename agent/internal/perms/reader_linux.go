@@ -125,3 +125,37 @@ func (r *linuxReader) Shares(root string) ([]Folder, error) {
 	}
 	return folders, nil
 }
+
+// Members lista quem faz parte do grupo: membros declarados no grupo
+// (getent group) e usuários que têm o grupo como principal (getent passwd).
+// Grupos do domínio (SSSD, winbind) aparecem quando o sistema os resolve.
+func (r *linuxReader) Members(name, sid string) (GroupInfo, error) {
+	g := GroupInfo{Name: name, SID: sid}
+	query := name
+	if id, ok := strings.CutPrefix(sid, "gid:"); ok {
+		query = id
+	}
+	out, err := exec.Command("getent", "group", query).Output()
+	if err != nil {
+		return g, errors.New("grupo não encontrado no sistema")
+	}
+	gname, gid, members := parseGroupLine(strings.TrimSpace(string(out)))
+	g.Name, g.SID = gname, "gid:"+gid
+	seen := map[string]bool{}
+	for _, m := range members {
+		if !seen[m] {
+			seen[m] = true
+			g.Members = append(g.Members, Member{Name: m, Kind: "user"})
+		}
+	}
+	if pw, err := exec.Command("getent", "passwd").Output(); err == nil {
+		for _, line := range strings.Split(string(pw), "\n") {
+			f := strings.Split(line, ":")
+			if len(f) >= 4 && f[3] == gid && !seen[f[0]] {
+				seen[f[0]] = true
+				g.Members = append(g.Members, Member{Name: f[0], SID: "uid:" + f[2], Kind: "user"})
+			}
+		}
+	}
+	return g, nil
+}

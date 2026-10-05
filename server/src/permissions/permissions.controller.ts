@@ -104,16 +104,19 @@ export class PermissionsController {
     const f = this.filters(req, q);
     if (!(await this.permissions.allowed(f.tenantId))) throw new BadRequestException('O inventário de permissões faz parte do plano Enterprise.');
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: f.tenantId }, select: { name: true } });
-    const t = await this.permissions.table(f, EXPORT_ROWS[format], { tenantName: tenant.name, userName: req.user.name });
+    const { main: t, appendix } = await this.permissions.table(f, EXPORT_ROWS[format], { tenantName: tenant.name, userName: req.user.name });
     await this.audit.record({
       userId: req.user.id,
       tenantId: f.tenantId,
       action: 'permissions.export',
       ip: req.ip,
-      details: { ...this.details(f), format, rows: t.rows.length },
+      details: { ...this.details(f), format, rows: t.rows.length, groups: appendix.rows.length },
     });
     const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-    const body = format === 'xlsx' ? reportXlsx(t) : await reportPdf(t, `Tech Audit · Inventário de permissões · ${tenant.name}`);
+    const body =
+      format === 'xlsx'
+        ? reportXlsx(t, [{ table: appendix, sheet: 'Membros dos grupos' }], 'Permissões')
+        : await reportPdf(t, `Tech Audit · Inventário de permissões · ${tenant.name}`, [appendix]);
     res.setHeader('content-type', CONTENT_TYPE[format]);
     res.setHeader('content-disposition', `attachment; filename="permissoes-${stamp}.${format}"`);
     res.setHeader('cache-control', 'no-store');
