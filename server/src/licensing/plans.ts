@@ -9,18 +9,20 @@ export interface PlanFeatures {
   auditRead: boolean;
   // Inventário de permissões (quem tem acesso a cada pasta auditada).
   permissionsInventory: boolean;
+  // Alertas e relatórios agendados enviados por e-mail.
+  email: boolean;
 }
 
 export const PLANS: Record<string, PlanFeatures> = {
-  Essencial: { retentionDays: 90, auditRead: false, permissionsInventory: false },
-  Profissional: { retentionDays: 365, auditRead: true, permissionsInventory: false },
-  Enterprise: { retentionDays: 1825, auditRead: true, permissionsInventory: true },
+  Essencial: { retentionDays: 90, auditRead: false, permissionsInventory: false, email: false },
+  Profissional: { retentionDays: 365, auditRead: true, permissionsInventory: false, email: true },
+  Enterprise: { retentionDays: 1825, auditRead: true, permissionsInventory: true, email: true },
 };
 
 export const DEFAULT_PLAN = 'Essencial';
 
 // Nomes fora da lista (licenças antigas ou personalizadas) não perdem recursos.
-const OTHER: PlanFeatures = { retentionDays: 365, auditRead: true, permissionsInventory: true };
+const OTHER: PlanFeatures = { retentionDays: 365, auditRead: true, permissionsInventory: true, email: true };
 
 export function planFeatures(plan: string): PlanFeatures {
   return Object.hasOwn(PLANS, plan) ? PLANS[plan] : OTHER;
@@ -33,4 +35,8 @@ export function readAuditAllowed(licenses: { plan: string }[]): boolean {
 
 export function permissionsInventoryAllowed(licenses: { plan: string }[]): boolean {
   return licenses.some((l) => planFeatures(l.plan).permissionsInventory);
+}
+
+export function emailAllowed(licenses: { plan: string }[]): boolean {
+  return licenses.some((l) => planFeatures(l.plan).email);
 }

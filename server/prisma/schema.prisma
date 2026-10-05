@@ -26,6 +26,8 @@ model Tenant {
   users            User[]
   auditedPaths     AuditedPath[]
   eventPurges      EventPurge[]
+  notificationSettings NotificationSettings?
+  scheduledReports ScheduledReport[]
   // Faixa do volume auditado já avisada (0, 80 ou 100%), para alertar só na subida.
   volumeAlertLevel Int               @default(0) @map("volume_alert_level")
 
@@ -103,6 +105,8 @@ model Agent {
   // Inventário de permissões: último "Atualizar agora" do portal e última coleta recebida.
   permissionsRequestedAt DateTime? @map("permissions_requested_at")
   permissionsScannedAt   DateTime? @map("permissions_scanned_at")
+  // Quando foi gerado o alerta "parou de enviar dados"; limpo quando volta.
+  offlineAlertAt       DateTime? @map("offline_alert_at")
 
   @@unique([tenantId, machineId])
   @@map("agents")
@@ -327,8 +331,13 @@ model Alert {
   acknowledgedAt DateTime? @map("acknowledged_at")
   acknowledgedBy String?   @map("acknowledged_by") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at")
+  // Envio por e-mail: preenchido quando o alerta já foi tratado (enviado,
+  // fora do plano, tipo desligado ou sem destinatários).
+  emailedAt      DateTime? @map("emailed_at")
+  emailAttempts  Int       @default(0) @map("email_attempts")
 
   @@index([tenantId, createdAt])
+  @@index([emailedAt])
   @@map("alerts")
 }
 
@@ -442,4 +451,102 @@ model PermissionGroupMember {
 
   @@index([scanId])
   @@map("permission_group_members")
+}
+
+// Alertas por e-mail da empresa (planos Profissional e Enterprise).
+model NotificationSettings {
+  tenantId                String   @id @map("tenant_id") @db.Uuid
+  tenant                  Tenant   @relation(fields: [tenantId], references: [id])
+  // Endereços que recebem os alertas.
+  alertRecipients         String[] @default([]) @map("alert_recipients")
+  // Grupos de alerta ligados (src/notifications/rules.ts, ALERT_GROUPS).
+  alertGroups             String[] @default([]) @map("alert_groups")
+  // Exclusão em massa: N exclusões do mesmo usuário em M minutos.
+  massDeleteThreshold     Int      @default(100) @map("mass_delete_threshold")
+  massDeleteWindowMinutes Int      @default(10) @map("mass_delete_window_minutes")
+  updatedById             String?  @map("updated_by_id") @db.Uuid
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_settings")
+}
+
+// Relatório enviado por e-mail com frequência fixa (planos Profissional e Enterprise).
+model ScheduledReport {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  name         String
+  // usuarios, pastas, periodo, eventos
+  reportType   String    @map("report_type")
+  // pdf ou xlsx
+  format       String
+  // daily, weekly, monthly
+  frequency    String
+  // Semanal: 1 = segunda ... 7 = domingo. Mensal: sempre no dia 1.
+  weekday      Int?
+  // Hora do envio, horário de Brasília.
+  hour         Int
+  filterUser   String?   @map("filter_user")
+  filterPath   String?   @map("filter_path")
+  filterAction String?   @map("filter_action")
+  recipients   String[]
+  enabled      Boolean   @default(true)
+  nextRunAt    DateTime  @map("next_run_at")
+  lastRunAt    DateTime? @map("last_run_at")
+  // sent, failed, skipped
+  lastStatus   String?   @map("last_status")
+  lastError    String?   @map("last_error")
+  createdById  String?   @map("created_by_id") @db.Uuid
+  createdByName String?  @map("created_by_name")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([enabled, nextRunAt])
+  @@map("scheduled_reports")
+}
+
+// Histórico dos e-mails enviados (alertas, relatórios e testes).
+model EmailDelivery {
+  id                BigInt   @id @default(autoincrement())
+  tenantId          String?  @map("tenant_id") @db.Uuid
+  // alert, report, test
+  kind              String
+  scheduledReportId String?  @map("scheduled_report_id") @db.Uuid
+  subject           String
+  recipients        String[]
+  // sent, failed, skipped
+  status            String
+  error             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@map("email_deliveries")
+}
+
+// Servidor de e-mail usado nos alertas e relatórios (tela "Servidor de e-mail"
+// do menu Tech Master). Uma linha só (id 1). Senha e segredo criptografados
+// com SECRETS_KEY (src/notifications/secrets.ts).
+model MailSettings {
+  id             Int      @id @default(1)
+  // microsoft365 (Graph, OAuth) ou smtp
+  provider       String
+  fromAddress    String   @map("from_address")
+  fromName       String   @default("Tech Audit") @map("from_name")
+  // Endereço do portal nos links dos e-mails.
+  portalUrl      String?  @map("portal_url")
+  smtpHost       String?  @map("smtp_host")
+  smtpPort       Int?     @map("smtp_port")
+  // starttls, tls ou none
+  smtpSecurity   String?  @map("smtp_security")
+  smtpUser       String?  @map("smtp_user")
+  smtpPassword   String?  @map("smtp_password")
+  msTenantId     String?  @map("ms_tenant_id")
+  msClientId     String?  @map("ms_client_id")
+  msClientSecret String?  @map("ms_client_secret")
+  updatedById    String?  @map("updated_by_id") @db.Uuid
+  updatedByName  String?  @map("updated_by_name")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("mail_settings")
 }

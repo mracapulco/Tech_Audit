@@ -425,3 +425,15 @@ details.help[open] > summary { border-color: var(--accent); color: var(--accent)
 .perm-table tbody + tbody { border-top: 2px solid var(--border, transparent); }
 .perm-table td:first-child { padding-left: 24px; }
 .perm-deny td { background: var(--pill-bad-bg); }
+
+/* Alertas e e-mails */
+.facts { display: grid; gap: 10px; margin: 0; }
+.facts dt { font-size: .8rem; color: var(--muted); }
+.facts dd { margin: 2px 0 0; }
+fieldset.checks { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+fieldset.checks legend { padding: 0; margin-bottom: 4px; }
+td.cell-menu .row-actions { flex-wrap: nowrap; align-items: center; justify-content: flex-end; }
+td.cell-menu .row-actions button { white-space: nowrap; }
+.rule { display: flex; flex-direction: column; gap: 6px; }
+.rule-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rule-line input { width: 7rem; }

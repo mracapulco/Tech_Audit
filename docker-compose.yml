@@ -55,6 +55,8 @@ services:
       # 3001, que não é publicada e só o contêiner web acessa.
       AGENT_PORT: 3002
       TZ: America/Sao_Paulo
+      # Chave que criptografa no banco a senha do servidor de e-mail (ver .env.example).
+      SECRETS_KEY: ${SECRETS_KEY:-}
     # Porta publicada para os agentes (/v1/enroll, /v1/events, /v1/config).
     # BIND_ADDRESS=127.0.0.1 deixa a porta só para um proxy na própria máquina.
     ports:

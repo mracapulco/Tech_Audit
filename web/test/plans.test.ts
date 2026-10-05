@@ -4,9 +4,9 @@ import { planSummary, retentionLabel } from '../lib/plans.ts';
 
 describe('planos', () => {
   it('resume retenção e leitura do plano', () => {
-    assert.equal(planSummary('Essencial'), 'Retenção padrão de 90 dias; sem auditoria de leitura.');
-    assert.equal(planSummary('Enterprise'), 'Retenção padrão de 5 anos; inclui auditoria de leitura e inventário de permissões.');
-    assert.equal(planSummary('Profissional'), 'Retenção padrão de 1 ano; inclui auditoria de leitura.');
+    assert.equal(planSummary('Essencial'), 'Retenção padrão de 90 dias; sem auditoria de leitura; sem alertas e relatórios por e-mail.');
+    assert.equal(planSummary('Enterprise'), 'Retenção padrão de 5 anos; inclui auditoria de leitura; com alertas e relatórios por e-mail; inclui inventário de permissões.');
+    assert.equal(planSummary('Profissional'), 'Retenção padrão de 1 ano; inclui auditoria de leitura; com alertas e relatórios por e-mail.');
     assert.equal(planSummary('Antigo'), 'Plano fora da lista: todos os recursos liberados.');
   });
 
