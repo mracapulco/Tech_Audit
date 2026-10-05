@@ -100,6 +100,9 @@ model Agent {
   configAppliedVersion Int?      @map("config_applied_version")
   configFetchedAt      DateTime? @map("config_fetched_at")
   sizesMeasuredAt      DateTime? @map("sizes_measured_at")
+  // Inventário de permissões: último "Atualizar agora" do portal e última coleta recebida.
+  permissionsRequestedAt DateTime? @map("permissions_requested_at")
+  permissionsScannedAt   DateTime? @map("permissions_scanned_at")
 
   @@unique([tenantId, machineId])
   @@map("agents")
@@ -357,4 +360,63 @@ model EventPurge {
   @@index([tenantId, createdAt])
   @@index([createdAt])
   @@map("event_purges")
+}
+
+// Coleta do inventário de permissões de um caminho auditado (plano
+// Enterprise). O id é gerado pelo agente; as pastas chegam em partes
+// numeradas e a coleta fica "running" até a última. Só as duas últimas
+// coletas completas de cada caminho guardam as linhas (para comparar).
+model PermissionScan {
+  id              String            @id @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  agentId         String            @map("agent_id") @db.Uuid
+  auditedPathId   String            @map("audited_path_id") @db.Uuid
+  path            String
+  // running, complete ou error (o agente não conseguiu ler o caminho).
+  status          String
+  nextPart        Int               @default(0) @map("next_part")
+  foldersScanned  Int               @default(0) @map("folders_scanned")
+  foldersRecorded Int               @default(0) @map("folders_recorded")
+  truncated       Boolean           @default(false)
+  error           String?
+  startedAt       DateTime          @map("started_at")
+  finishedAt      DateTime?         @map("finished_at")
+  receivedAt      DateTime          @default(now()) @map("received_at")
+  entries         PermissionEntry[]
+
+  @@index([auditedPathId, receivedAt])
+  @@index([tenantId])
+  @@map("permission_scans")
+}
+
+// Uma permissão de uma pasta (ou compartilhamento) em uma coleta. Pasta sem
+// nenhuma permissão, ou com erro de leitura, vira uma linha sem principal.
+model PermissionEntry {
+  id          BigInt         @id @default(autoincrement())
+  scanId      String         @map("scan_id") @db.Uuid
+  scan        PermissionScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  folderPath  String         @map("folder_path")
+  depth       Int
+  // ntfs, posix ou share.
+  source      String
+  share       String?
+  owner       String?
+  // Herança desligada (Windows).
+  protected   Boolean        @default(false)
+  // root, explicit, protected, changed, share ou error.
+  reason      String
+  folderError String?        @map("folder_error")
+  principal   String?
+  sid         String?
+  // user, group, other ou unknown.
+  kind        String?
+  // allow ou deny.
+  access      String?
+  rights      String?
+  raw         String?
+  inherited   Boolean        @default(false)
+  appliesTo   String?        @map("applies_to")
+
+  @@index([scanId])
+  @@map("permission_entries")
 }

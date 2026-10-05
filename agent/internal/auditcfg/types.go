@@ -18,6 +18,17 @@ type Config struct {
 	AgentID string       `json:"agent_id"`
 	Version int          `json:"version"`
 	Paths   []PathConfig `json:"paths"`
+	// Permissions liga o inventário de permissões (plano Enterprise).
+	Permissions PermissionsConfig `json:"permissions"`
+}
+
+// PermissionsConfig é o pedido do portal para o inventário de permissões.
+type PermissionsConfig struct {
+	Enabled bool `json:"enabled"`
+	// IntervalHours entre coletas. Padrão 24.
+	IntervalHours int `json:"interval_hours"`
+	// RequestedAt muda quando alguém pede "Atualizar agora" no portal.
+	RequestedAt string `json:"requested_at"`
 }
 
 // PathConfig é um caminho auditado como o portal o deixou.

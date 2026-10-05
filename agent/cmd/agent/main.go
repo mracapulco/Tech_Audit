@@ -32,7 +32,7 @@ import (
 	"github.com/mracapulco/Tech_Audit/agent/internal/store"
 )
 
-var version = "0.4.0-dev" // sobrescrito com -ldflags "-X main.version=..."
+var version = "0.5.0-dev" // sobrescrito com -ldflags "-X main.version=..."
 
 // options são as opções de linha de comando do modo de execução.
 type options struct {

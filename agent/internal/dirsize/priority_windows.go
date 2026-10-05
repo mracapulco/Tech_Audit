@@ -13,9 +13,9 @@ const (
 	threadModeBackgroundEnd   = 0x00020000
 )
 
-// lowerPriority coloca a thread da varredura em modo de segundo plano (I/O e
+// LowerPriority coloca a thread da varredura em modo de segundo plano (I/O e
 // CPU em baixa prioridade), para não pesar no servidor de arquivos.
-func lowerPriority() func() {
+func LowerPriority() func() {
 	runtime.LockOSThread()
 	h := windows.CurrentThread()
 	r, _, _ := procSetThreadPriority.Call(uintptr(h), threadModeBackgroundBegin)

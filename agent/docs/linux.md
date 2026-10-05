@@ -61,11 +61,11 @@ Samba.
 2. Instale (o auditd vem junto, do repositório da distribuição):
 
    ```
-   sudo env NEEDRESTART_SUSPEND=1 apt install -y /tmp/techaudit-agent_0.4.1-1_amd64.deb
+   sudo env NEEDRESTART_SUSPEND=1 apt install -y /tmp/techaudit-agent_0.5.0-1_amd64.deb
    ```
 
    ```
-   sudo yum install -y /tmp/techaudit-agent-0.4.1-1.x86_64.rpm
+   sudo yum install -y /tmp/techaudit-agent-0.5.0-1.x86_64.rpm
    ```
 
    Em `/tmp` o apt lê o arquivo sem o aviso "Download is performed

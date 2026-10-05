@@ -25,6 +25,9 @@ type Syncer struct {
 	// warning é true para erros e divergências.
 	Notify func(warning bool, msg string)
 	Logf   func(format string, args ...any)
+	// OnConfig recebe cada configuração buscada e os caminhos ativos (usado
+	// pelo inventário de permissões).
+	OnConfig func(cfg *Config, active []PathConfig)
 	// Measure mede as pastas; padrão dirsize.Measure.
 	Measure func(ctx context.Context, paths []string) map[string]*dirsize.Result
 
@@ -146,6 +149,9 @@ func (s *Syncer) Once(ctx context.Context) error {
 	s.mu.Lock()
 	s.activePaths = active
 	s.mu.Unlock()
+	if s.OnConfig != nil {
+		s.OnConfig(cfg, active)
+	}
 	if changed {
 		s.requestMeasure()
 	}

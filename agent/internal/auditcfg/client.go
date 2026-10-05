@@ -58,6 +58,11 @@ func (c *Client) SendSizes(ctx context.Context, sizes []SizeReport) error {
 	return c.do(ctx, http.MethodPost, c.url("config/sizes"), map[string]any{"paths": sizes}, nil)
 }
 
+// Post envia um JSON para um endereço relativo ao endpoint (ex.: "permissions").
+func (c *Client) Post(ctx context.Context, rel string, body any) error {
+	return c.do(ctx, http.MethodPost, c.url(rel), body, nil)
+}
+
 func (c *Client) do(ctx context.Context, method, u string, body, out any) error {
 	var rd io.Reader
 	if body != nil {

@@ -7,9 +7,9 @@ const T = '3f2a9c1e-8b7d-4c6e-9a1b-2c3d4e5f6a7b';
 describe('espaço da empresa', () => {
   it('abas por perfil', () => {
     const keys = (role: string, t: boolean) => workspaceTabs(role, t).map((x) => x.key);
-    assert.deepEqual(keys('msp_admin', true), ['painel', 'eventos', 'relatorios', 'servidores', 'usuarios', 'licenca']);
-    assert.deepEqual(keys('msp_operator', true), ['painel', 'eventos', 'relatorios', 'servidores']);
-    assert.deepEqual(keys('tenant_admin', true), ['painel', 'eventos', 'relatorios', 'servidores']);
+    assert.deepEqual(keys('msp_admin', true), ['painel', 'eventos', 'relatorios', 'permissoes', 'servidores', 'usuarios', 'licenca']);
+    assert.deepEqual(keys('msp_operator', true), ['painel', 'eventos', 'relatorios', 'permissoes', 'servidores']);
+    assert.deepEqual(keys('tenant_admin', true), ['painel', 'eventos', 'relatorios', 'permissoes', 'servidores']);
     assert.deepEqual(keys('msp_admin', false), ['painel', 'eventos', 'relatorios']);
   });
 
@@ -32,5 +32,6 @@ describe('espaço da empresa', () => {
     assert.equal(switchTarget('/servidores', 'msp_admin', ''), '/painel');
     assert.equal(switchTarget('/eventos', 'msp_admin', ''), '/eventos');
     assert.equal(switchTarget('/admin/limpeza', 'msp_admin', T), `/painel?cliente=${T}`);
+    assert.equal(switchTarget('/permissoes', 'msp_admin', ''), '/painel', 'permissões precisam de uma empresa');
   });
 });

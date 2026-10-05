@@ -176,6 +176,14 @@ Log de alterações (`audit_config_changes`, somente inserção, nunca atualizad
 - SACL e política antes e depois, resultado e mensagem de erro;
 - exibido no portal em **Configuração > Histórico de alterações** e exportável em relatório.
 
+### 4.7 Inventário de permissões (plano Enterprise)
+
+O agente lê, sem alterar, quem tem acesso a cada pasta auditada: dono e DACL
+(NTFS) e permissões de compartilhamento no Windows; dono, grupo, modo, ACL
+POSIX e parâmetros do Samba no Linux. Coleta a cada 24 h, ao surgir um
+caminho novo e quando pedem "Atualizar agora" no portal. Detalhes em
+`agent/docs/inventario-permissoes.md`.
+
 ## 5. Comunicação e autenticação do agente
 
 Proposta: **token de registro + mTLS**, combinando a facilidade do token com a segurança do certificado.

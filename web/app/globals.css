@@ -412,3 +412,16 @@ details.help[open] > summary { border-color: var(--accent); color: var(--accent)
   .kv dd { margin-bottom: 8px; }
   .choice { grid-template-columns: 1fr; }
 }
+
+/* Inventário de permissões */
+.perm-agents { display: grid; gap: 12px; }
+.perm-agent { display: flex; flex-direction: column; gap: 8px; }
+.perm-agent-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.perm-agent-head .form-actions { margin-left: auto; }
+.perm-paths { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.perm-paths li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.perm-table .perm-folder th { background: var(--pill-neutral-bg); text-align: left; font-weight: 600; }
+.perm-table .perm-folder th > * { margin-right: 10px; }
+.perm-table tbody + tbody { border-top: 2px solid var(--border, transparent); }
+.perm-table td:first-child { padding-left: 24px; }
+.perm-deny td { background: var(--pill-bad-bg); }

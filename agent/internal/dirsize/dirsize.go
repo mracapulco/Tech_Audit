@@ -42,7 +42,7 @@ func Measure(ctx context.Context, paths []string) map[string]*Result {
 	}
 	sort.Strings(keys)
 
-	restore := lowerPriority()
+	restore := LowerPriority()
 	defer restore()
 	for _, k := range keys {
 		if isNested(k, keys) {
