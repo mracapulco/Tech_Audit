@@ -20,6 +20,9 @@ import { HealthController } from './health.controller.js';
 import { AgentAuthGuard, AgentIdentityGuard } from './ingest/agent-auth.guard.js';
 import { IngestController } from './ingest/ingest.controller.js';
 import { IngestService } from './ingest/ingest.service.js';
+import { MailerService } from './notifications/mailer.service.js';
+import { NotificationsController } from './notifications/notifications.controller.js';
+import { NotificationsService } from './notifications/notifications.service.js';
 import { LicenseService } from './licensing/license.service.js';
 import { AuditLogService } from './portal/audit-log.service.js';
 import { TenantsController } from './portal/tenants.controller.js';
@@ -42,6 +45,7 @@ import { ReportsService } from './reports/reports.service.js';
     AgentConfigController,
     ReportsController,
     InstallerController,
+    NotificationsController,
   ],
   providers: [
     PrismaService,
@@ -59,6 +63,8 @@ import { ReportsService } from './reports/reports.service.js';
     AuditConfigService,
     ReportsService,
     PurgeService,
+    MailerService,
+    NotificationsService,
   ],
 })
 export class AppModule {}

@@ -139,6 +139,11 @@ para `127.0.0.1:3000` (portal) e `127.0.0.1:3001` (agentes), repassando
 - Senhas fortes em `POSTGRES_PASSWORD` (só letras e números) e
   `BOOTSTRAP_ADMIN_PASSWORD`. Depois do primeiro login, as linhas
   `BOOTSTRAP_ADMIN_*` podem sair do `.env`.
+- E-mail dos alertas e relatórios agendados: preencha `SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_USER`, `SMTP_PASSWORD` e `SMTP_FROM` (veja o `.env.example`) e
+  `PORTAL_URL=https://audit.techmaster.inf.br` (links nos e-mails). Sem
+  `SMTP_HOST`, nada é enviado e a aba "Alertas e e-mails" avisa. Depois de
+  alterar, `docker compose up -d` e use "Enviar e-mail de teste" na aba.
 - Backup: `docker compose exec -T db pg_dump -U techaudit -Fc techaudit > techaudit-$(date +%F).dump`.
 
 ## Restaurar um backup

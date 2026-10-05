@@ -7,18 +7,20 @@ export interface PlanFeatures {
   retentionDays: number;
   // Auditoria de leitura (quem abriu o arquivo) nos caminhos auditados.
   auditRead: boolean;
+  // Alertas e relatórios agendados enviados por e-mail.
+  email: boolean;
 }
 
 export const PLANS: Record<string, PlanFeatures> = {
-  Essencial: { retentionDays: 90, auditRead: false },
-  Profissional: { retentionDays: 365, auditRead: true },
-  Enterprise: { retentionDays: 1825, auditRead: true },
+  Essencial: { retentionDays: 90, auditRead: false, email: false },
+  Profissional: { retentionDays: 365, auditRead: true, email: true },
+  Enterprise: { retentionDays: 1825, auditRead: true, email: true },
 };
 
 export const DEFAULT_PLAN = 'Essencial';
 
 // Nomes fora da lista (licenças antigas ou personalizadas) não perdem recursos.
-const OTHER: PlanFeatures = { retentionDays: 365, auditRead: true };
+const OTHER: PlanFeatures = { retentionDays: 365, auditRead: true, email: true };
 
 export function planFeatures(plan: string): PlanFeatures {
   return Object.hasOwn(PLANS, plan) ? PLANS[plan] : OTHER;
@@ -27,4 +29,8 @@ export function planFeatures(plan: string): PlanFeatures {
 // Com várias licenças vigentes, vale o recurso de qualquer uma delas.
 export function readAuditAllowed(licenses: { plan: string }[]): boolean {
   return licenses.some((l) => planFeatures(l.plan).auditRead);
+}
+
+export function emailAllowed(licenses: { plan: string }[]): boolean {
+  return licenses.some((l) => planFeatures(l.plan).email);
 }

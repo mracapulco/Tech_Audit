@@ -11,14 +11,17 @@ export function Drawer({
   title,
   children,
   onOpenChange,
+  defaultOpen = false,
 }: {
   trigger: ReactNode;
   triggerClass?: string;
   title: string;
   children: ReactNode;
   onOpenChange?: (open: boolean) => void;
+  // Já aberto ao carregar (ex.: link "Agendar por e-mail" dos relatórios).
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpenState] = useState(false);
+  const [open, setOpenState] = useState(defaultOpen);
   const setOpen = (v: boolean) => {
     setOpenState(v);
     onOpenChange?.(v);
