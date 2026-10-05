@@ -13,7 +13,7 @@ const DAY = 24 * HOUR;
 // (coluna alerts.kind).
 export const ALERT_GROUPS = {
   agent_offline: {
-    label: 'Servidor parou de enviar dados (e quando volta)',
+    label: 'Servidor 1 hora sem enviar dados (e quando volta)',
     kinds: ['agent_offline', 'agent_online'],
     default: true,
   },

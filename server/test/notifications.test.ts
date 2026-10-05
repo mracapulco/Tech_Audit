@@ -13,6 +13,9 @@ import { parseBatch } from '../src/ingest/batch.js';
 import { IngestService } from '../src/ingest/ingest.service.js';
 import { MailerService } from '../src/notifications/mailer.service.js';
 import { NotificationsService } from '../src/notifications/notifications.service.js';
+import { GraphMailer } from '../src/notifications/graph.js';
+import { parseMailSettings } from '../src/notifications/mail-settings.js';
+import { decryptSecret, encryptSecret } from '../src/notifications/secrets.js';
 import { kindsFor, massDeletes, nextRun, parseRecipients, periodLabel, reportPeriod, scheduleLabel } from '../src/notifications/rules.js';
 import { PrismaService } from '../src/prisma.service.js';
 import { sampleEvent } from './fixtures.js';
@@ -76,6 +79,85 @@ describe('e-mails: regras', () => {
 
   it('grupos de alerta viram tipos', () => {
     assert.deepEqual([...kindsFor(['volume', 'agent_offline', 'xyz'])].sort(), ['agent_offline', 'agent_online', 'volume_100', 'volume_80']);
+  });
+});
+
+process.env.SECRETS_KEY ??= 'chave-de-teste-com-mais-de-32-caracteres-0123456789';
+
+describe('servidor de e-mail: regras', () => {
+  it('segredo criptografado volta igual e não fica em texto', () => {
+    const e = encryptSecret('s3nh@-secreta');
+    assert.match(e, /^v1:/);
+    assert.ok(!e.includes('s3nh@'));
+    assert.notEqual(encryptSecret('s3nh@-secreta'), e, 'cada vez um IV');
+    assert.equal(decryptSecret(e), 's3nh@-secreta');
+    assert.throws(() => decryptSecret('v1:' + Buffer.from('x'.repeat(40)).toString('base64')), /SECRETS_KEY/);
+  });
+
+  it('formulário: Microsoft 365 e SMTP', () => {
+    const tenant = '3f2a9c1e-8b7d-4c6e-9a1b-2c3d4e5f6a7b';
+    const ms = parseMailSettings(
+      { provider: 'microsoft365', from_address: 'Nao-Responda@TechMaster.inf.br', ms_tenant_id: tenant, ms_client_id: tenant.toUpperCase(), ms_client_secret: 'abc', portal_url: 'https://audit.techmaster.inf.br/' },
+      null,
+    );
+    assert.equal(ms.fromAddress, 'nao-responda@techmaster.inf.br');
+    assert.equal(ms.msClientId, tenant);
+    assert.equal(ms.portalUrl, 'https://audit.techmaster.inf.br');
+    assert.throws(() => parseMailSettings({ provider: 'microsoft365', from_address: 'a@b.com', ms_tenant_id: tenant, ms_client_id: tenant }, null), /segredo/);
+    // Segredo em branco com um já salvo: mantém.
+    assert.equal(parseMailSettings({ provider: 'microsoft365', from_address: 'a@b.com', ms_tenant_id: 'techmaster.inf.br', ms_client_id: tenant }, { smtpPassword: null, msClientSecret: 'v1:x' }).msClientSecret, undefined);
+    const smtp = parseMailSettings({ provider: 'smtp', from_address: 'a@b.com', smtp_host: 'smtp.exemplo.com', smtp_port: '465', smtp_security: 'tls' }, null);
+    assert.deepEqual([smtp.smtpHost, smtp.smtpPort, smtp.smtpSecurity, smtp.smtpUser], ['smtp.exemplo.com', 465, 'tls', null]);
+    assert.throws(() => parseMailSettings({ provider: 'smtp', from_address: 'a@b.com', smtp_host: 'x y' }, null), /servidor SMTP/);
+    assert.throws(() => parseMailSettings({ provider: 'smtp', from_address: 'a@b.com', smtp_host: 'smtp.x.com', smtp_user: 'u' }, null), /senha/);
+    assert.throws(() => parseMailSettings({ provider: 'gmail', from_address: 'a@b.com' }, null), /Microsoft 365 ou SMTP/);
+    assert.throws(() => parseMailSettings({ provider: 'smtp', from_address: 'a@b.com', smtp_host: 'smtp.x.com', portal_url: 'javascript:alert(1)' }, null), /https/);
+  });
+
+  it('Microsoft 365: token OAuth, sendMail e anexo grande por upload', async () => {
+    const calls: { url: string; method: string; headers: Record<string, string>; body: unknown }[] = [];
+    let tokens = 0;
+    const fake = async (url: string, init: RequestInit) => {
+      calls.push({ url, method: init.method ?? 'GET', headers: (init.headers ?? {}) as Record<string, string>, body: init.body });
+      const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } });
+      if (url.includes('/oauth2/v2.0/token')) return json({ access_token: `tok${++tokens}`, expires_in: 3600 });
+      if (url.endsWith('/messages')) return json({ id: 'draft1' }, 201);
+      if (url.endsWith('/createUploadSession')) return json({ uploadUrl: 'https://upload.example/session' });
+      if (url.startsWith('https://upload.example')) return json({}, 200);
+      return new Response(null, { status: 202 });
+    };
+    const g = new GraphMailer({ tenantId: 'tid', clientId: 'cid', clientSecret: 'sec', from: 'nao-responda@techmaster.inf.br', fromName: 'Tech Audit' }, fake);
+    await g.send({ to: ['a@b.com'], subject: 'Oi', text: 'oi', html: '<p>oi</p>', attachments: [{ filename: 'r.pdf', content: Buffer.from('pdf'), contentType: 'application/pdf' }] });
+    const token = calls[0];
+    assert.match(token.url, /login\.microsoftonline\.com\/tid\/oauth2\/v2\.0\/token/);
+    assert.match(String(token.body), /grant_type=client_credentials/);
+    assert.match(String(token.body), /scope=https%3A%2F%2Fgraph\.microsoft\.com%2F\.default/);
+    const send = calls[1];
+    assert.equal(send.url, 'https://graph.microsoft.com/v1.0/users/nao-responda%40techmaster.inf.br/sendMail');
+    assert.equal(send.headers.authorization, 'Bearer tok1');
+    const msg = JSON.parse(String(send.body)).message;
+    assert.deepEqual(msg.toRecipients, [{ emailAddress: { address: 'a@b.com' } }]);
+    assert.equal(msg.attachments[0].contentBytes, Buffer.from('pdf').toString('base64'));
+
+    calls.length = 0;
+    const big = Buffer.alloc(4 * 1024 * 1024, 1);
+    await g.send({ to: ['a@b.com'], subject: 'Grande', text: '', html: '', attachments: [{ filename: 'r.xlsx', content: big, contentType: 'application/x' }] });
+    assert.equal(tokens, 1, 'reaproveita o token');
+    assert.deepEqual(
+      calls.map((c) => `${c.method} ${c.url.replace('https://graph.microsoft.com/v1.0/users/nao-responda%40techmaster.inf.br', '')}`),
+      ['POST /messages', 'POST /messages/draft1/attachments/createUploadSession', 'PUT https://upload.example/session', 'PUT https://upload.example/session', 'PUT https://upload.example/session', 'PUT https://upload.example/session', 'POST /messages/draft1/send'],
+    );
+    assert.equal(calls[2].headers.authorization, undefined, 'upload sem token');
+    assert.equal(calls[5].headers['content-range'], `bytes 3932160-4194303/4194304`);
+  });
+
+  it('Microsoft 365: erro da Graph vira mensagem clara', async () => {
+    const fake = async (url: string) =>
+      url.includes('token')
+        ? new Response(JSON.stringify({ error: 'invalid_client', error_description: 'AADSTS7000215: Invalid client secret provided.\r\nTrace ID: x' }), { status: 401 })
+        : new Response(null, { status: 202 });
+    const g = new GraphMailer({ tenantId: 't', clientId: 'c', clientSecret: 's', from: 'a@b.com', fromName: 'x' }, fake);
+    await assert.rejects(g.send({ to: ['x@y.com'], subject: 's', text: '', html: '' }), /login no Microsoft 365 recusado \(HTTP 401\): AADSTS7000215: Invalid client secret provided\.$/);
   });
 });
 
@@ -370,6 +452,38 @@ describe('alertas e relatórios por e-mail', { skip }, () => {
     assert.equal((await call(admin, 'GET', '/notifications')).body.reports.length, 0);
   });
 
+  it('tela Servidor de e-mail: só o administrador, segredo não volta', async () => {
+    assert.equal((await call(admin, 'GET', '/admin/mail')).status, 403);
+    const body = {
+      provider: 'microsoft365',
+      from_address: `nao-responda.${id}@techmaster.inf.br`,
+      ms_tenant_id: 'techmaster.inf.br',
+      ms_client_id: '3f2a9c1e-8b7d-4c6e-9a1b-2c3d4e5f6a7b',
+      ms_client_secret: 'segredo-muito-secreto',
+      portal_url: 'https://audit.techmaster.inf.br',
+    };
+    const r = await call(msp, 'POST', '/admin/mail', body);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.has_ms_client_secret, true);
+    assert.ok(!JSON.stringify(r.body).includes('segredo-muito'));
+    const row = await prisma.mailSettings.findUniqueOrThrow({ where: { id: 1 } });
+    assert.match(row.msClientSecret!, /^v1:/);
+    // Salvar sem o segredo mantém o anterior.
+    await call(msp, 'POST', '/admin/mail', { ...body, ms_client_secret: '' });
+    assert.equal((await prisma.mailSettings.findUniqueOrThrow({ where: { id: 1 } })).msClientSecret, row.msClientSecret);
+    const t = await call(msp, 'POST', '/admin/mail/test', { to: `rafael.${id}@techmaster.inf.br` });
+    assert.equal(t.status, 200, JSON.stringify(t.body));
+    assert.equal(mine().length, 0);
+    assert.equal(sent.at(-1)!.subject, '[Tech Audit] Teste do servidor de e-mail');
+    assert.match(String(sent.at(-1)!.text), /https:\/\/audit\.techmaster\.inf\.br\/painel/);
+    // Trocar para SMTP apaga o segredo do Microsoft 365.
+    const smtp = await call(msp, 'POST', '/admin/mail', { provider: 'smtp', from_address: 'a@b.com', smtp_host: 'smtp.exemplo.com', smtp_user: 'u', smtp_password: 'p' });
+    assert.equal(smtp.body.has_ms_client_secret, false);
+    assert.equal(smtp.body.has_smtp_password, true);
+    await prisma.mailSettings.delete({ where: { id: 1 } });
+    app.get(MailerService).invalidate();
+  });
+
   it('sem SMTP configurado: registra e não trava', async () => {
     mailer.useTransport(null);
     try {
@@ -381,7 +495,7 @@ describe('alertas e relatórios por e-mail', { skip }, () => {
       assert.ok(a.emailedAt);
       const d = await prisma.emailDelivery.findFirstOrThrow({ where: { tenantId: tenantPro, kind: 'alert' }, orderBy: { id: 'desc' } });
       assert.equal(d.status, 'skipped');
-      assert.match(d.error!, /SMTP_HOST/);
+      assert.match(d.error!, /Servidor de e-mail/);
     } finally {
       mailer.useTransport({ sendMail: async (m) => void sent.push(m) });
     }

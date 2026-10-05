@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import nodemailer, { type Transporter } from 'nodemailer';
+import nodemailer from 'nodemailer';
+import { PrismaService } from '../prisma.service.js';
+import { GraphMailer, type FetchFn } from './graph.js';
+import { decryptSecret } from './secrets.js';
 
 export interface MailAttachment {
   filename: string;
@@ -20,57 +23,98 @@ export type MailTransport = { sendMail(m: Record<string, unknown>): Promise<unkn
 
 export class MailNotConfiguredError extends Error {
   constructor() {
-    super('envio de e-mail não configurado no servidor (SMTP_HOST no .env)');
+    super('servidor de e-mail não configurado (menu Tech Master > Servidor de e-mail)');
   }
 }
 
-// Envio de e-mail por SMTP, configurado no .env (SMTP_HOST, SMTP_PORT,
-// SMTP_SECURE, SMTP_USER, SMTP_PASSWORD, SMTP_FROM). Sem SMTP_HOST, nada é
-// enviado e os envios ficam registrados como não configurados.
+type Settings = NonNullable<Awaited<ReturnType<PrismaService['mailSettings']['findUnique']>>>;
+
+interface Sender {
+  send(m: Mail): Promise<void>;
+}
+
+// Envio de e-mail com o servidor configurado no portal (tabela mail_settings):
+// Microsoft 365 pela Graph (OAuth, autenticação moderna) ou SMTP comum.
 @Injectable()
 export class MailerService {
-  private transport: MailTransport | null = null;
-  private readonly from = process.env.SMTP_FROM || 'Tech Audit <nao-responda@techmaster.inf.br>';
+  private override: MailTransport | null | undefined = undefined;
+  private cached: { at: number; settings: Settings | null; sender: Sender | null } | null = null;
+  // Só para os testes da Graph.
+  fetchFn: FetchFn = fetch;
 
-  constructor() {
-    const host = process.env.SMTP_HOST?.trim();
-    if (!host) return;
-    const port = Number(process.env.SMTP_PORT || 587);
-    const user = process.env.SMTP_USER?.trim();
-    this.transport = nodemailer.createTransport({
-      host,
+  constructor(private readonly prisma: PrismaService) {}
+
+  // Só para os testes: null = sem servidor configurado.
+  useTransport(t: MailTransport | null) {
+    this.override = t;
+  }
+
+  // A tela salvou: o próximo envio relê a configuração.
+  invalidate() {
+    this.cached = null;
+  }
+
+  async settings(): Promise<Settings | null> {
+    if (!this.cached || Date.now() - this.cached.at > 60_000) {
+      const settings = await this.prisma.mailSettings.findUnique({ where: { id: 1 } });
+      this.cached = { at: Date.now(), settings, sender: null };
+    }
+    return this.cached.settings;
+  }
+
+  async configured(): Promise<boolean> {
+    if (this.override !== undefined) return this.override !== null;
+    return (await this.settings()) !== null;
+  }
+
+  // Endereço do portal para os links dos e-mails.
+  async portalUrl(): Promise<string> {
+    return ((await this.settings())?.portalUrl ?? '').trim().replace(/\/$/, '');
+  }
+
+  private build(s: Settings): Sender {
+    const fromName = s.fromName || 'Tech Audit';
+    if (s.provider === 'microsoft365') {
+      const g = new GraphMailer(
+        { tenantId: s.msTenantId ?? '', clientId: s.msClientId ?? '', clientSecret: decryptSecret(s.msClientSecret ?? ''), from: s.fromAddress, fromName },
+        (url, init) => this.fetchFn(url, init),
+      );
+      return g;
+    }
+    const port = s.smtpPort ?? 587;
+    const security = s.smtpSecurity ?? 'starttls';
+    const t = nodemailer.createTransport({
+      host: s.smtpHost ?? '',
       port,
-      // 465 = TLS direto; 587/25 = STARTTLS, exigido quando há usuário e senha.
-      secure: (process.env.SMTP_SECURE ?? String(port === 465)) === 'true',
-      requireTLS: !!user && port !== 465,
-      auth: user ? { user, pass: process.env.SMTP_PASSWORD ?? '' } : undefined,
+      secure: security === 'tls',
+      requireTLS: security === 'starttls',
+      ignoreTLS: security === 'none',
+      auth: s.smtpUser ? { user: s.smtpUser, pass: s.smtpPassword ? decryptSecret(s.smtpPassword) : '' } : undefined,
       connectionTimeout: 20_000,
       greetingTimeout: 20_000,
       socketTimeout: 60_000,
       // Anexos e corpo vêm só do próprio servidor; nada de arquivos ou URLs.
       disableFileAccess: true,
       disableUrlAccess: true,
-    }) as Transporter;
-  }
-
-  get configured(): boolean {
-    return this.transport !== null;
-  }
-
-  // Só para os testes.
-  useTransport(t: MailTransport | null) {
-    this.transport = t;
+    });
+    const from = { name: fromName, address: s.fromAddress };
+    return {
+      send: async (m) => {
+        await t.sendMail({ from, to: m.to, subject: m.subject, text: m.text, html: m.html, attachments: m.attachments });
+      },
+    };
   }
 
   async send(m: Mail): Promise<void> {
-    if (!this.transport) throw new MailNotConfiguredError();
-    await this.transport.sendMail({
-      from: this.from,
-      to: m.to,
-      subject: m.subject,
-      text: m.text,
-      html: m.html,
-      attachments: m.attachments,
-    });
+    if (this.override === null) throw new MailNotConfiguredError();
+    if (this.override) {
+      await this.override.sendMail({ to: m.to, subject: m.subject, text: m.text, html: m.html, attachments: m.attachments });
+      return;
+    }
+    const s = await this.settings();
+    if (!s) throw new MailNotConfiguredError();
+    if (!this.cached!.sender) this.cached!.sender = this.build(s);
+    await this.cached!.sender.send(m);
   }
+
 }

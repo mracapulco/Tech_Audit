@@ -6,7 +6,7 @@ import { Menu } from '@/components/menu';
 import { TenantSwitch } from '@/components/tenant-switch';
 import { apiGet, isMsp, type CurrentUser } from '@/lib/api';
 
-export type TopBarActive = 'empresas' | 'equipe' | 'agente' | 'limpeza' | 'conta';
+export type TopBarActive = 'empresas' | 'equipe' | 'agente' | 'limpeza' | 'email' | 'conta';
 
 // Barra roxa: empresa em uso à esquerda (a Tech Master troca por aqui), menu
 // das telas da Tech Master e menu da pessoa à direita.
@@ -54,6 +54,7 @@ export async function TopBar({ user, tenantId = '', active }: { user: CurrentUse
           {admin && item('equipe', '/admin/usuarios', 'Equipe Tech Master')}
           {item('agente', '/agente', 'Instaladores do agente')}
           {admin && item('limpeza', '/admin/limpeza', 'Limpeza de dados')}
+          {admin && item('email', '/admin/email', 'Servidor de e-mail', 'alertas e relatórios')}
         </Menu>
       )}
       <Menu

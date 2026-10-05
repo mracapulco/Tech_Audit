@@ -139,11 +139,17 @@ para `127.0.0.1:3000` (portal) e `127.0.0.1:3001` (agentes), repassando
 - Senhas fortes em `POSTGRES_PASSWORD` (só letras e números) e
   `BOOTSTRAP_ADMIN_PASSWORD`. Depois do primeiro login, as linhas
   `BOOTSTRAP_ADMIN_*` podem sair do `.env`.
-- E-mail dos alertas e relatórios agendados: preencha `SMTP_HOST`, `SMTP_PORT`,
-  `SMTP_USER`, `SMTP_PASSWORD` e `SMTP_FROM` (veja o `.env.example`) e
-  `PORTAL_URL=https://audit.techmaster.inf.br` (links nos e-mails). Sem
-  `SMTP_HOST`, nada é enviado e a aba "Alertas e e-mails" avisa. Depois de
-  alterar, `docker compose up -d` e use "Enviar e-mail de teste" na aba.
+- E-mail dos alertas e relatórios agendados: gere a chave `SECRETS_KEY` uma vez
+  (`openssl rand -hex 32`) e coloque no `.env`; ela criptografa no banco a
+  senha do servidor de e-mail. O servidor em si (Microsoft 365 com
+  autenticação moderna ou SMTP) é configurado no portal, menu Tech Master >
+  Servidor de e-mail, que tem o botão de teste.
+- Microsoft 365 (Exchange Online): no Entra ID, registre um aplicativo, crie
+  um segredo e dê a permissão de **aplicativo** `Mail.Send` (Microsoft Graph)
+  com consentimento do administrador. Para o aplicativo só poder enviar pela
+  caixa do remetente, limite com uma Application Access Policy
+  (`New-ApplicationAccessPolicy -AccessRight RestrictAccess`) ou com RBAC
+  para aplicativos do Exchange.
 - Backup: `docker compose exec -T db pg_dump -U techaudit -Fc techaudit > techaudit-$(date +%F).dump`.
 
 ## Restaurar um backup

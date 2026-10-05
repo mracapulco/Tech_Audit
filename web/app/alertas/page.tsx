@@ -90,7 +90,8 @@ function AlertsView({ view, tenantId, edit, msp, sp }: { view: View; tenantId: s
         <h2 className="page-title">
           Alertas e e-mails
           <Help>
-            O Tech Audit confere a cada minuto se algum servidor parou de enviar dados e se algum usuário excluiu muitos arquivos de uma vez. Os
+            O Tech Audit confere a cada minuto se algum servidor ficou 1 hora sem enviar sinal (o agente manda um a cada minuto) e se algum usuário
+            excluiu muitos arquivos de uma vez. Os
             alertas aparecem na aba Servidores e, se ligados aqui, vão por e-mail: os alertas novos de cada minuto chegam juntos, num e-mail só.
             Os relatórios agendados vão em anexo, em PDF ou Excel, no horário de Brasília.
           </Help>
@@ -105,7 +106,7 @@ function AlertsView({ view, tenantId, edit, msp, sp }: { view: View; tenantId: s
       {view.plan_allows && !view.email_configured && (
         <p className="notice">
           {msp
-            ? 'O envio de e-mail ainda não está configurado no servidor (SMTP_HOST no .env). As configurações podem ser salvas, mas nada será enviado até lá.'
+            ? 'O servidor de e-mail ainda não foi configurado (menu Tech Master > Servidor de e-mail). As configurações podem ser salvas, mas nada será enviado até lá.'
             : 'O envio de e-mail está sendo configurado pela Tech Master. As configurações podem ser salvas e passam a valer assim que estiver pronto.'}
         </p>
       )}
@@ -127,15 +128,14 @@ function AlertsView({ view, tenantId, edit, msp, sp }: { view: View; tenantId: s
                   </label>
                 ))}
               </fieldset>
-              <div className="inline-form">
-                <label>
-                  Exclusão em massa: a partir de
-                  <input type="number" name="mass_delete_threshold" min={10} max={100000} defaultValue={a.mass_delete_threshold} />
-                </label>
-                <label>
-                  exclusões do mesmo usuário em até (minutos)
-                  <input type="number" name="mass_delete_window_minutes" min={1} max={60} defaultValue={a.mass_delete_window_minutes} />
-                </label>
+              <div className="rule">
+                <span className="small muted">Exclusão em massa: avisar quando o mesmo usuário excluir</span>
+                <span className="rule-line">
+                  <input type="number" name="mass_delete_threshold" min={10} max={100000} defaultValue={a.mass_delete_threshold} aria-label="Quantidade de arquivos" />
+                  <span>arquivos ou mais em até</span>
+                  <input type="number" name="mass_delete_window_minutes" min={1} max={60} defaultValue={a.mass_delete_window_minutes} aria-label="Minutos" />
+                  <span>minutos</span>
+                </span>
               </div>
             </ActionForm>
             {a.recipients.length > 0 && (
@@ -160,7 +160,7 @@ function AlertsView({ view, tenantId, edit, msp, sp }: { view: View; tenantId: s
             <div>
               <dt>Exclusão em massa</dt>
               <dd>
-                {a.mass_delete_threshold} exclusões em até {a.mass_delete_window_minutes} minutos
+                {a.mass_delete_threshold} arquivos ou mais excluídos pelo mesmo usuário em até {a.mass_delete_window_minutes} minutos
               </dd>
             </div>
           </dl>

@@ -438,3 +438,30 @@ model EmailDelivery {
   @@index([tenantId, createdAt])
   @@map("email_deliveries")
 }
+
+// Servidor de e-mail usado nos alertas e relatórios (tela "Servidor de e-mail"
+// do menu Tech Master). Uma linha só (id 1). Senha e segredo criptografados
+// com SECRETS_KEY (src/notifications/secrets.ts).
+model MailSettings {
+  id             Int      @id @default(1)
+  // microsoft365 (Graph, OAuth) ou smtp
+  provider       String
+  fromAddress    String   @map("from_address")
+  fromName       String   @default("Tech Audit") @map("from_name")
+  // Endereço do portal nos links dos e-mails.
+  portalUrl      String?  @map("portal_url")
+  smtpHost       String?  @map("smtp_host")
+  smtpPort       Int?     @map("smtp_port")
+  // starttls, tls ou none
+  smtpSecurity   String?  @map("smtp_security")
+  smtpUser       String?  @map("smtp_user")
+  smtpPassword   String?  @map("smtp_password")
+  msTenantId     String?  @map("ms_tenant_id")
+  msClientId     String?  @map("ms_client_id")
+  msClientSecret String?  @map("ms_client_secret")
+  updatedById    String?  @map("updated_by_id") @db.Uuid
+  updatedByName  String?  @map("updated_by_name")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("mail_settings")
+}

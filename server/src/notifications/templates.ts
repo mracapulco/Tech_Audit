@@ -4,10 +4,8 @@ import { formatDateTime } from '../reports/table.js';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-export const portalUrl = () => (process.env.PORTAL_URL ?? '').trim().replace(/\/$/, '');
-
-function link(path: string, tenantId: string | null): string | null {
-  const base = portalUrl();
+// base = endereço do portal (tela Servidor de e-mail); vazio = sem links.
+function link(base: string, path: string, tenantId: string | null): string | null {
   if (!base) return null;
   return `${base}${path}${tenantId ? `?cliente=${tenantId}` : ''}`;
 }
@@ -45,7 +43,7 @@ const SEVERITY: Record<string, { label: string; color: string }> = {
   info: { label: 'Informação', color: '#00799a' },
 };
 
-export function alertMail(tenant: { id: string; name: string }, alerts: AlertItem[]) {
+export function alertMail(base: string, tenant: { id: string; name: string }, alerts: AlertItem[]) {
   const n = alerts.length;
   const subject =
     n === 1 ? `[Tech Audit] ${tenant.name}: ${alerts[0].message}`.slice(0, 200) : `[Tech Audit] ${tenant.name}: ${n} alertas`;
@@ -59,7 +57,7 @@ export function alertMail(tenant: { id: string; name: string }, alerts: AlertIte
     .join('');
   const intro = `<p style="margin:0 0 12px">Empresa: <strong>${esc(tenant.name)}</strong></p>`;
   const table = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>`;
-  const href = link('/servidores', tenant.id);
+  const href = link(base, '/servidores', tenant.id);
   const html = frame(n === 1 ? 'Novo alerta' : `${n} novos alertas`, intro + table, href ? { label: 'Abrir no portal', href } : null);
   const text =
     `Empresa: ${tenant.name}\n\n` +
@@ -70,6 +68,7 @@ export function alertMail(tenant: { id: string; name: string }, alerts: AlertIte
 }
 
 export function reportMail(o: {
+  base: string;
   tenant: { id: string; name: string };
   name: string;
   title: string;
@@ -97,19 +96,31 @@ export function reportMail(o: {
     `<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px">${lines
       .map(([k, v]) => `<tr><td style="padding:4px 16px 4px 0;color:#6b6478;vertical-align:top">${esc(k)}</td><td style="padding:4px 0">${esc(v)}</td></tr>`)
       .join('')}</table><p style="margin:16px 0 0">${esc(note)}</p>`,
-    link('/relatorios', o.tenant.id) ? { label: 'Abrir relatórios no portal', href: link('/relatorios', o.tenant.id)! } : null,
+    link(o.base, '/relatorios', o.tenant.id) ? { label: 'Abrir relatórios no portal', href: link(o.base, '/relatorios', o.tenant.id)! } : null,
   );
   const text = lines.map(([k, v]) => `${k}: ${v}`).join('\n') + `\n\n${note}` + FOOT;
   return { subject, html, text };
 }
 
-export function testMail(tenant: { id: string; name: string }, by: string) {
+export function testMail(base: string, tenant: { id: string; name: string }, by: string) {
   const subject = `[Tech Audit] ${tenant.name}: e-mail de teste`;
   const body = `<p style="margin:0">Este é um e-mail de teste dos alertas da empresa <strong>${esc(tenant.name)}</strong>, enviado por ${esc(by)}. Se chegou, os alertas e relatórios agendados também vão chegar.</p>`;
-  const href = link('/alertas', tenant.id);
+  const href = link(base, '/alertas', tenant.id);
   return {
     subject,
     html: frame('E-mail de teste', body, href ? { label: 'Abrir no portal', href } : null),
     text: `Este é um e-mail de teste dos alertas da empresa ${tenant.name}, enviado por ${by}. Se chegou, os alertas e relatórios agendados também vão chegar.${href ? `\n\n${href}` : ''}${FOOT}`,
+  };
+}
+
+// Teste da tela "Servidor de e-mail" (Tech Master).
+export function serverTestMail(base: string, by: string, provider: string) {
+  const how = provider === 'microsoft365' ? 'Microsoft 365 (autenticação moderna)' : 'SMTP';
+  const body = `<p style="margin:0">Este é um e-mail de teste do servidor de e-mail do Tech Audit (${esc(how)}), enviado por ${esc(by)}. Se chegou, a configuração está certa.</p>`;
+  const href = base ? `${base}/painel` : null;
+  return {
+    subject: '[Tech Audit] Teste do servidor de e-mail',
+    html: frame('Servidor de e-mail funcionando', body, href ? { label: 'Abrir o portal', href } : null),
+    text: `Este é um e-mail de teste do servidor de e-mail do Tech Audit (${how}), enviado por ${by}. Se chegou, a configuração está certa.${href ? `\n\n${href}` : ''}${FOOT}`,
   };
 }

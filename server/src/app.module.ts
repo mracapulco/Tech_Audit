@@ -20,6 +20,7 @@ import { HealthController } from './health.controller.js';
 import { AgentAuthGuard, AgentIdentityGuard } from './ingest/agent-auth.guard.js';
 import { IngestController } from './ingest/ingest.controller.js';
 import { IngestService } from './ingest/ingest.service.js';
+import { AdminMailController } from './notifications/admin-mail.controller.js';
 import { MailerService } from './notifications/mailer.service.js';
 import { NotificationsController } from './notifications/notifications.controller.js';
 import { NotificationsService } from './notifications/notifications.service.js';
@@ -46,6 +47,7 @@ import { ReportsService } from './reports/reports.service.js';
     ReportsController,
     InstallerController,
     NotificationsController,
+    AdminMailController,
   ],
   providers: [
     PrismaService,

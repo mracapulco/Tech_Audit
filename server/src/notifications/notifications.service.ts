@@ -97,7 +97,6 @@ export class NotificationsService implements OnApplicationBootstrap, OnModuleDes
     if (!(every > 0)) return;
     this.timer = setInterval(() => void this.tick(), every);
     this.timer.unref();
-    if (!this.mailer.configured) this.logger.warn('SMTP_HOST não configurado: alertas e relatórios por e-mail não serão enviados');
   }
 
   onModuleDestroy() {
@@ -166,7 +165,7 @@ export class NotificationsService implements OnApplicationBootstrap, OnModuleDes
     ]);
     return {
       tenant: { id: t.id, name: t.name },
-      email_configured: this.mailer.configured,
+      email_configured: await this.mailer.configured(),
       plan_allows: t.allowed,
       alerts: {
         saved: s !== null,
@@ -209,7 +208,7 @@ export class NotificationsService implements OnApplicationBootstrap, OnModuleDes
       where: { tenantId, kind: 'test', createdAt: { gt: new Date(Date.now() - MANUAL_INTERVAL_MS) } },
     });
     if (recent) throw new BadRequestException('aguarde um minuto para enviar outro e-mail de teste');
-    const m = testMail({ id: t.id, name: t.name }, user.name);
+    const m = testMail(await this.mailer.portalUrl(), { id: t.id, name: t.name }, user.name);
     const r = await this.deliver({ tenantId, kind: 'test', to, ...m });
     if (r.status !== 'sent') throw new BadRequestException(`o e-mail não foi enviado: ${r.error}`);
     return { ok: true, recipients: to };
@@ -428,7 +427,7 @@ export class NotificationsService implements OnApplicationBootstrap, OnModuleDes
         await this.prisma.alert.updateMany({ where: { id: { in: ids } }, data: { emailedAt: now } });
         continue;
       }
-      const m = alertMail({ id: t.id, name: t.name }, send.map((a) => ({ severity: a.severity, message: a.message, createdAt: a.createdAt })));
+      const m = alertMail(await this.mailer.portalUrl(), { id: t.id, name: t.name }, send.map((a) => ({ severity: a.severity, message: a.message, createdAt: a.createdAt })));
       const r = await this.deliver({ tenantId, kind: 'alert', to: s.alertRecipients, ...m });
       if (r.status === 'failed') {
         // Tenta de novo nas próximas rodadas; depois de 3 falhas, desiste.
@@ -493,6 +492,7 @@ export class NotificationsService implements OnApplicationBootstrap, OnModuleDes
       r.filterAction && `ação: ${actionLabel(r.filterAction)}`,
     ].filter((x): x is string => !!x);
     const m = reportMail({
+      base: await this.mailer.portalUrl(),
       tenant: { id: t.id, name: t.name },
       name: r.name,
       title: table.title,
