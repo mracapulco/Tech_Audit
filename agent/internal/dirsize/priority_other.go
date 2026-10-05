@@ -2,4 +2,5 @@
 
 package dirsize
 
-func lowerPriority() func() { return func() {} }
+// LowerPriority não faz nada fora do Windows.
+func LowerPriority() func() { return func() {} }

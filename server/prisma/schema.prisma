@@ -102,6 +102,9 @@ model Agent {
   configAppliedVersion Int?      @map("config_applied_version")
   configFetchedAt      DateTime? @map("config_fetched_at")
   sizesMeasuredAt      DateTime? @map("sizes_measured_at")
+  // Inventário de permissões: último "Atualizar agora" do portal e última coleta recebida.
+  permissionsRequestedAt DateTime? @map("permissions_requested_at")
+  permissionsScannedAt   DateTime? @map("permissions_scanned_at")
   // Quando foi gerado o alerta "parou de enviar dados"; limpo quando volta.
   offlineAlertAt       DateTime? @map("offline_alert_at")
 
@@ -366,6 +369,88 @@ model EventPurge {
   @@index([tenantId, createdAt])
   @@index([createdAt])
   @@map("event_purges")
+}
+
+// Coleta do inventário de permissões de um caminho auditado (plano
+// Enterprise). O id é gerado pelo agente; as pastas chegam em partes
+// numeradas e a coleta fica "running" até a última. Só as duas últimas
+// coletas completas de cada caminho guardam as linhas (para comparar).
+model PermissionScan {
+  id              String            @id @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  agentId         String            @map("agent_id") @db.Uuid
+  auditedPathId   String            @map("audited_path_id") @db.Uuid
+  path            String
+  // running, complete ou error (o agente não conseguiu ler o caminho).
+  status          String
+  nextPart        Int               @default(0) @map("next_part")
+  foldersScanned  Int               @default(0) @map("folders_scanned")
+  foldersRecorded Int               @default(0) @map("folders_recorded")
+  truncated       Boolean           @default(false)
+  error           String?
+  startedAt       DateTime          @map("started_at")
+  finishedAt      DateTime?         @map("finished_at")
+  receivedAt      DateTime          @default(now()) @map("received_at")
+  entries         PermissionEntry[]
+  groupMembers    PermissionGroupMember[]
+
+  @@index([auditedPathId, receivedAt])
+  @@index([tenantId])
+  @@map("permission_scans")
+}
+
+// Uma permissão de uma pasta (ou compartilhamento) em uma coleta. Pasta sem
+// nenhuma permissão, ou com erro de leitura, vira uma linha sem principal.
+model PermissionEntry {
+  id          BigInt         @id @default(autoincrement())
+  scanId      String         @map("scan_id") @db.Uuid
+  scan        PermissionScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  folderPath  String         @map("folder_path")
+  depth       Int
+  // ntfs, posix ou share.
+  source      String
+  share       String?
+  owner       String?
+  // Herança desligada (Windows).
+  protected   Boolean        @default(false)
+  // root, explicit, protected, changed, share ou error.
+  reason      String
+  folderError String?        @map("folder_error")
+  principal   String?
+  sid         String?
+  // user, group, other ou unknown.
+  kind        String?
+  // allow ou deny.
+  access      String?
+  rights      String?
+  raw         String?
+  inherited   Boolean        @default(false)
+  appliesTo   String?        @map("applies_to")
+
+  @@index([scanId])
+  @@map("permission_entries")
+}
+
+// Quem faz parte de cada grupo citado nas permissões de uma coleta (apêndice
+// do relatório). Uma linha por membro direto; grupo sem membros (ou com erro,
+// ou especial como "Todos") vira uma linha sem membro.
+model PermissionGroupMember {
+  id         BigInt         @id @default(autoincrement())
+  scanId     String         @map("scan_id") @db.Uuid
+  scan       PermissionScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  groupName  String         @map("group_name")
+  groupSid   String?        @map("group_sid")
+  note       String?
+  error      String?
+  // Lista cortada no limite de membros do agente.
+  truncated  Boolean        @default(false)
+  memberName String?        @map("member_name")
+  memberSid  String?        @map("member_sid")
+  // user, group ou unknown.
+  memberKind String?        @map("member_kind")
+
+  @@index([scanId])
+  @@map("permission_group_members")
 }
 
 // Alertas por e-mail da empresa (planos Profissional e Enterprise).

@@ -117,7 +117,7 @@ func parseACE(raw string) (ace, bool) {
 	if len(f) < 6 {
 		return ace{}, false
 	}
-	mask, ok := parseRights(f[2])
+	mask, ok := ParseRights(f[2])
 	if !ok {
 		return ace{}, false
 	}
@@ -163,7 +163,9 @@ var rightAliases = map[string]uint32{
 	"KA": 0xf003f, "KR": 0x20019, "KW": 0x20006, "KX": 0x20019,
 }
 
-func parseRights(s string) (uint32, bool) {
+// ParseRights lê os direitos de uma entrada SDDL: máscara (0x1f01ff) ou
+// apelidos (FA, FR, GA...).
+func ParseRights(s string) (uint32, bool) {
 	s = strings.ToUpper(strings.TrimSpace(s))
 	if strings.HasPrefix(s, "0X") {
 		v, err := strconv.ParseUint(s[2:], 16, 32)

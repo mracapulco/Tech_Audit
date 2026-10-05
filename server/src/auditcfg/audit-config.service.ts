@@ -5,6 +5,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import type { AuthenticatedAgent } from '../ingest/agent-auth.guard.js';
 import { LicenseService } from '../licensing/license.service.js';
 import { readAuditAllowed } from '../licensing/plans.js';
+import { PermissionsService } from '../permissions/permissions.service.js';
 import { PrismaService } from '../prisma.service.js';
 import { agentHealth, lastContact } from '../reports/reports.service.js';
 import type { AgentResult, SizeReport } from './agent-input.js';
@@ -66,6 +67,7 @@ export class AuditConfigService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly licenses: LicenseService,
+    private readonly permissions: PermissionsService,
   ) {}
 
   // --- Acesso -------------------------------------------------------------
@@ -371,6 +373,8 @@ export class AuditConfigService {
         audit_read: p.auditRead,
         exclusions: p.exclusions,
       })),
+      // Inventário de permissões (plano Enterprise); o agente só lê permissões.
+      permissions: await this.permissions.agentSettings(a),
     };
   }
 

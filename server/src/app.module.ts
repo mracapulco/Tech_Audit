@@ -12,6 +12,8 @@ import { AuthController } from './auth/auth.controller.js';
 import { AuthService } from './auth/auth.service.js';
 import { PortalAuthGuard } from './auth/portal-auth.guard.js';
 import { PgService } from './db/pg.service.js';
+import { AgentPermissionsController, PermissionsController } from './permissions/permissions.controller.js';
+import { PermissionsService } from './permissions/permissions.service.js';
 import { EnrollmentController } from './enrollment/enrollment.controller.js';
 import { EnrollmentService } from './enrollment/enrollment.service.js';
 import { EventsController } from './events/events.controller.js';
@@ -46,6 +48,8 @@ import { ReportsService } from './reports/reports.service.js';
     AgentConfigController,
     ReportsController,
     InstallerController,
+    PermissionsController,
+    AgentPermissionsController,
     NotificationsController,
     AdminMailController,
   ],
@@ -65,6 +69,7 @@ import { ReportsService } from './reports/reports.service.js';
     AuditConfigService,
     ReportsService,
     PurgeService,
+    PermissionsService,
     MailerService,
     NotificationsService,
   ],

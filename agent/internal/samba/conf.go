@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -15,7 +16,13 @@ type Share struct {
 	Path string
 	// VFS são os módulos efetivos (os do compartilhamento ou, sem eles, os do [global]).
 	VFS []string
+	// Access são os parâmetros de acesso do compartilhamento (valid users,
+	// read only, write list...), para o inventário de permissões.
+	Access map[string]string
 }
+
+// AccessKeys são os parâmetros que definem quem acessa o compartilhamento.
+var AccessKeys = []string{"valid users", "invalid users", "read list", "write list", "admin users", "read only", "guest ok", "guest only", "force user", "force group", "browseable", "available"}
 
 // ParseTestparm lê a saída de "testparm -s": seções e parâmetros.
 func ParseTestparm(out string) []Share {
@@ -55,6 +62,11 @@ func ParseTestparm(out string) []Share {
 		case cur != nil && k == "vfs objects":
 			cur.VFS = strings.Fields(v)
 			own[cur.Name] = true
+		case cur != nil && slices.Contains(AccessKeys, k):
+			if cur.Access == nil {
+				cur.Access = map[string]string{}
+			}
+			cur.Access[k] = v
 		}
 	}
 	flush()

@@ -4,7 +4,7 @@
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type TabKey = 'painel' | 'eventos' | 'relatorios' | 'servidores' | 'alertas' | 'usuarios' | 'licenca';
+export type TabKey = 'painel' | 'eventos' | 'relatorios' | 'permissoes' | 'servidores' | 'alertas' | 'usuarios' | 'licenca';
 
 export interface Tab {
   key: TabKey;
@@ -18,6 +18,7 @@ const ALL_TABS: Tab[] = [
   { key: 'painel', label: 'Painel', path: '/painel' },
   { key: 'eventos', label: 'Eventos', path: '/eventos' },
   { key: 'relatorios', label: 'Relatórios', path: '/relatorios' },
+  { key: 'permissoes', label: 'Permissões', path: '/permissoes' },
   { key: 'servidores', label: 'Servidores', path: '/servidores' },
   { key: 'alertas', label: 'Alertas e e-mails', path: '/alertas' },
   { key: 'usuarios', label: 'Usuários', path: '/usuarios', admin: true },
