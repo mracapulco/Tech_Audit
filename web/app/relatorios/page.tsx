@@ -11,7 +11,8 @@ export const metadata: Metadata = { title: 'Relatórios · Tech Audit' };
 
 interface ReportTable {
   title: string;
-  info: string[];
+  client: { label: string; value: string }[];
+  notes: string[];
   columns: { key: string; label: string; kind: 'text' | 'path' | 'int' | 'datetime' }[];
   rows: Record<string, string | number | null>[];
   truncated: boolean;
@@ -113,7 +114,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </div>
             </div>
             <p className="muted small">
-              {t.info.filter((l) => !l.startsWith('Gerado em')).join(' · ')}
+              {t.client
+                .filter((f) => !f.label.startsWith('Gerado'))
+                .map((f) => `${f.label}: ${f.value}`)
+                .join(' · ')}
               {t.truncated && (
                 <>
                   {' '}

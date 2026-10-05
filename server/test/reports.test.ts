@@ -227,7 +227,11 @@ describe('portal: painel e relatórios', { skip }, () => {
       { user: 'CORP\\joao.silva', total: 3, failures: 1, paths: 2, created: 1, modified: 1, read: 1, del: 0 },
     );
     assert.equal(joao.first_time, '2026-07-06T12:00:00Z');
-    assert.match(t.info[0], /^Empresa: Relatórios A/);
+    assert.match(t.client[0].value, /^Relatórios A/);
+    assert.deepEqual(
+      t.client.map((f: { label: string }) => f.label),
+      ['Empresa', 'Servidores', 'Período', 'Gerado por', 'Gerado em'],
+    );
     assert.equal(t.truncated, false);
   });
 
@@ -243,7 +247,7 @@ describe('portal: painel e relatórios', { skip }, () => {
     );
     const rh = await json('/reports/pastas', token, { path: 'd:\\shares\\rh' });
     assert.equal(rh.rows.length, 1);
-    assert.ok(rh.info.some((l: string) => l.includes('caminho começa com "d:\\shares\\rh"')));
+    assert.equal(rh.client.find((f: { label: string }) => f.label === 'Filtros').value, 'caminho começa com "d:\\shares\\rh"');
 
     const periodo = await json('/reports/periodo', token);
     assert.deepEqual(
@@ -270,7 +274,8 @@ describe('portal: painel e relatórios', { skip }, () => {
     const t = await json('/reports/eventos', await tokenFor(mspEmail), { user: 'joao.silva' });
     assert.equal(t.columns[1].key, 'tenant_name');
     assert.ok(t.rows.some((r: { path: string }) => r.path.includes('segredo-de-B')));
-    assert.equal(t.info[0], 'Empresa: todas');
+    assert.deepEqual(t.client[0], { label: 'Empresa', value: 'todas' });
+    assert.ok(!t.client.some((f: { label: string }) => f.label === 'Servidores'));
   });
 
   it('eventos detalhados trazem ação em português, novo caminho e quantidade', async () => {

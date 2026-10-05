@@ -483,7 +483,7 @@ export class NotificationsService implements OnApplicationBootstrap, OnModuleDes
     const limits = REPORT_LIMITS[format];
     const max = type === 'eventos' ? Math.min(limits.events, EMAIL_EVENT_ROWS) : limits.grouped;
     const table = await this.reports.report(type, f, max, { tenantName: t.name, userName: `envio agendado "${r.name}"` });
-    const file = format === 'xlsx' ? reportXlsx(table) : await reportPdf(table, `Tech Audit · ${table.title} · ${table.info[0]}`);
+    const file = format === 'xlsx' ? reportXlsx(table) : await reportPdf(table);
     const attached = file.length <= MAX_ATTACHMENT_BYTES;
     const label = periodLabel(period);
     const filters = [

@@ -9,7 +9,11 @@ import { unzip } from './fixtures.js';
 
 const table: ReportTable = {
   title: 'Atividade por usuário',
-  info: ['Empresa: Cliente & Cia', 'Período: 01/10/2026 00:00:00 a 02/10/2026 00:00:00'],
+  client: [
+    { label: 'Empresa', value: 'Cliente & Cia' },
+    { label: 'Período', value: '01/10/2026 00:00:00 a 02/10/2026 00:00:00' },
+  ],
+  notes: [],
   columns: [
     { key: 'user', label: 'Usuário', kind: 'text' },
     { key: 'path', label: 'Caminho', kind: 'path' },
@@ -39,24 +43,44 @@ describe('formatos dos relatórios', () => {
       '[Content_Types].xml',
       '_rels/.rels',
       'xl/_rels/workbook.xml.rels',
+      'xl/drawings/_rels/drawing1.xml.rels',
+      'xl/drawings/drawing1.xml',
+      'xl/media/faixa.png',
       'xl/styles.xml',
       'xl/workbook.xml',
+      'xl/worksheets/_rels/sheet1.xml.rels',
       'xl/worksheets/sheet1.xml',
     ]);
     const sheet = files.get('xl/worksheets/sheet1.xml')!;
     assert.match(sheet, /Cliente &amp; Cia/);
     assert.match(sheet, /D:\\Dados\\&lt;a&gt;.txt/);
-    assert.match(sheet, /<c r="C6"><v>1234<\/v><\/c>/);
-    assert.match(sheet, /<c r="D6" s="2"><v>46296.5<\/v><\/c>/);
+    assert.match(sheet, /<c r="C10"><v>1234<\/v><\/c>/);
+    assert.match(sheet, /<c r="D10" s="2"><v>46296.5<\/v><\/c>/);
     // Texto continua texto (o Excel não interpreta como fórmula).
     assert.match(sheet, /t="inlineStr"><is><t xml:space="preserve">=HYPERLINK\(&quot;x&quot;\)<\/t>/);
-    assert.match(sheet, /<autoFilter ref="A5:D7"\/>/);
+    assert.match(sheet, /<autoFilter ref="A9:D11"\/>/);
+  });
+
+  it('Excel no padrão visual: faixa Tech Audit, logo, dados do cliente e rodapé', () => {
+    const files = unzip(reportXlsx(table));
+    const sheet = files.get('xl/worksheets/sheet1.xml')!;
+    // Faixa roxa nas duas primeiras linhas; logo e nome vêm na imagem por cima.
+    assert.match(sheet, /<row r="1" ht="34" customHeight="1"><c r="A1" s="3"\/>/);
+    assert.match(sheet, /<c r="A5" t="inlineStr" s="7"><is><t xml:space="preserve">Atividade por usuário<\/t>/);
+    assert.match(sheet, /<c r="A6" t="inlineStr" s="8"><is><t xml:space="preserve">Empresa<\/t><\/is><\/c><c r="B6" t="inlineStr" s="9"><is><t xml:space="preserve">Cliente &amp; Cia<\/t>/);
+    assert.match(sheet, /<drawing r:id="rId1"\/>/);
+    // & literal no rodapé da impressão vira && (código do Excel) e depois &amp;.
+    assert.match(sheet, /<oddFooter>&amp;L&amp;8Tech Audit · Atividade por usuário · Cliente &amp;&amp; Cia&amp;R/);
+    assert.match(files.get('xl/workbook.xml')!, /<definedName name="_xlnm.Print_Titles" localSheetId="0">'Relatório'!\$9:\$9<\/definedName>/);
+    assert.match(files.get('xl/drawings/_rels/drawing1.xml.rels')!, /Target="..\/media\/faixa.png"/);
   });
 
   it('gera um PDF com várias páginas quando há muitas linhas', async () => {
     const many = { ...table, rows: Array.from({ length: 120 }, (_, i) => ({ user: `u${i}`, path: 'D:\\x', total: i, last: null })) };
-    const pdf = await reportPdf(many, 'Tech Audit · teste');
+    const pdf = await reportPdf(many);
     assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+    // Fonte Inter embutida, a mesma do portal.
+    assert.match(pdf.toString('latin1'), /\/BaseFont \/[A-Z]{6}\+Inter-Bold/);
     const pages = pdf.toString('latin1').match(/\/Type \/Page\b/g)?.length ?? 0;
     assert.ok(pages >= 3, `páginas: ${pages}`);
   });

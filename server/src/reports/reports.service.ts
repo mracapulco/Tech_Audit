@@ -17,7 +17,7 @@ import {
   type GroupRow,
   type Query,
 } from './report-query.js';
-import { actionLabel, formatDateTime, SENSITIVE_ACTIONS, sortActions, type Cell, type ReportColumn, type ReportTable } from './table.js';
+import { actionLabel, clientFields, formatDateTime, SENSITIVE_ACTIONS, serverList, sortActions, type Cell, type ReportColumn, type ReportField, type ReportTable } from './table.js';
 
 export const REPORT_TYPES = ['usuarios', 'pastas', 'periodo', 'eventos'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
@@ -69,19 +69,21 @@ export interface ReportContext {
 const userText = (r: { user_domain?: unknown; user_name?: unknown } | GroupRow) =>
   r.user_name ? (r.user_domain ? `${r.user_domain}\\${r.user_name}` : String(r.user_name)) : '(não identificado)';
 
-// Linhas de contexto que vão no topo da planilha e do PDF.
-export function reportInfo(f: EventFilters, ctx: ReportContext): string[] {
+// Dados do cliente que vão no topo da planilha e do PDF. `servers` são os
+// servidores da empresa (os relatórios de eventos cobrem todos).
+export function reportClient(f: EventFilters, ctx: ReportContext, servers: string[] = []): ReportField[] {
   const filters: string[] = [];
   if (f.user) filters.push(`usuário contém "${f.user}"`);
   if (f.pathPrefix) filters.push(`caminho começa com "${f.pathPrefix}"`);
   if (f.action) filters.push(`ação: ${actionLabel(f.action)}`);
-  const lines = [
-    `Empresa: ${ctx.tenantName ?? 'todas'}`,
-    `Período: ${formatDateTime(f.from.toISOString())} a ${formatDateTime(f.to.toISOString())} (horário de Brasília)`,
-  ];
-  if (filters.length) lines.push(`Filtros: ${filters.join('; ')}`);
-  lines.push(`Gerado em ${formatDateTime((ctx.now ?? new Date()).toISOString())} por ${ctx.userName}`);
-  return lines;
+  return clientFields({
+    company: ctx.tenantName ?? 'todas',
+    servers: serverList(servers),
+    period: `${formatDateTime(f.from.toISOString())} a ${formatDateTime(f.to.toISOString())} (horário de Brasília)`,
+    filters,
+    userName: ctx.userName,
+    now: ctx.now,
+  });
 }
 
 const col = (key: string, label: string, kind: ReportColumn['kind'] = 'text'): ReportColumn => ({ key, label, kind });
@@ -111,7 +113,11 @@ export class ReportsService {
   async report(type: ReportType, f: EventFilters, max: number, ctx: ReportContext): Promise<ReportTable> {
     const many = !ctx.tenantName;
     const tenantCol = many ? [col('tenant_name', 'Empresa')] : [];
-    const base = { title: REPORT_TITLES[type], info: reportInfo(f, ctx) };
+    const servers =
+      f.tenantIds?.length === 1
+        ? (await this.prisma.agent.findMany({ where: { tenantId: f.tenantIds[0], disabledAt: null }, select: { hostname: true } })).map((a) => a.hostname)
+        : [];
+    const base = { title: REPORT_TITLES[type], client: reportClient(f, ctx, servers), notes: [] };
 
     if (type === 'eventos') {
       const q = buildEventQuery(f, null, max + 1);
