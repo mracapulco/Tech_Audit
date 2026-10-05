@@ -32,7 +32,7 @@ import (
 	"github.com/mracapulco/Tech_Audit/agent/internal/store"
 )
 
-var version = "0.5.0-dev" // sobrescrito com -ldflags "-X main.version=..."
+var version = "0.5.1-dev" // sobrescrito com -ldflags "-X main.version=..."
 
 // options são as opções de linha de comando do modo de execução.
 type options struct {
@@ -208,9 +208,10 @@ func run(ctx context.Context, o options) error {
 	log.Printf("techaudit-agent %s iniciado (computador=%s, endpoint=%s, %d eventos no buffer)", version, cfg.AgentID, cfg.Endpoint, n)
 	p := &pipeline.Pipeline{
 		Source: src, Store: st, Correlator: corr, Filter: cfg.Filter, Send: send, Heartbeat: heartbeat,
-		Exclude: func(path string) bool { return auditExclusions.Load().Excluded(path) },
-		Decode:  decode,
-		AgentID: cfg.AgentID, Hostname: hostname, Version: version,
+		Exclude:     func(path string) bool { return auditExclusions.Load().Excluded(path) },
+		ReadAllowed: func(path string) bool { return auditExclusions.Load().ReadAllowed(path) },
+		Decode:      decode,
+		AgentID:     cfg.AgentID, Hostname: hostname, Version: version,
 		BatchSize: cfg.BatchSize, FlushInterval: cfg.FlushInterval.Duration,
 		Logf: log.Printf,
 	}

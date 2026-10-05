@@ -33,6 +33,9 @@ type Pipeline struct {
 	// Exclude, se informado, descarta caminhos excluídos no portal (renomear
 	// e mover passam se origem ou destino não estiver excluído).
 	Exclude func(path string) bool
+	// ReadAllowed, se informado, descarta leituras de caminhos com a
+	// auditoria de leitura desligada no portal.
+	ReadAllowed func(path string) bool
 	// Decode converte um evento bruto da fonte. Padrão: XML do Event Log do
 	// Windows (event.ParseXML + event.Decode com Filter).
 	Decode func(raw []byte) (event.Event, bool, error)
@@ -156,6 +159,11 @@ func (p *Pipeline) collect(ctx context.Context) error {
 		if p.Exclude != nil {
 			out = slices.DeleteFunc(out, func(e event.Event) bool {
 				return p.Exclude(e.Path) && (e.NewPath == "" || p.Exclude(e.NewPath))
+			})
+		}
+		if p.ReadAllowed != nil {
+			out = slices.DeleteFunc(out, func(e event.Event) bool {
+				return e.Action == event.ActionRead && !p.ReadAllowed(e.Path)
 			})
 		}
 		if len(raw) > 0 || len(out) > 0 {

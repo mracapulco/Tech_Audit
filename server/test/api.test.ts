@@ -131,6 +131,7 @@ describe('API dos agentes', { skip }, () => {
       inserted: 2,
       duplicates: 0,
       rejected: 0,
+      filtered: 0,
     });
     const { rows } = await pg.query(
       `SELECT e.source_record_id, e.actions, e.success, e.access_mask, host(e.source_ip) AS ip, p.path, i.name, i.domain
@@ -223,6 +224,34 @@ describe('API dos agentes', { skip }, () => {
       },
     });
     assert.deepEqual([rows[1].action, rows[1].event_count, rows[1].has_end], ['modified', 3, true]);
+  });
+
+  it('descarta leituras de caminhos com a auditoria de leitura desligada', async () => {
+    const paths = [
+      { path: 'D:\\Shares', recursive: true, auditRead: true },
+      { path: 'D:\\Shares\\Financeiro', recursive: true, auditRead: false },
+    ];
+    for (const p of paths) {
+      await prisma.auditedPath.create({ data: { ...p, tenantId, agentId, pathKey: p.path.toLowerCase(), status: 'applied' } });
+    }
+    const read = (rid: number, path: string) => ({ ...sampleEvent, record_id: rid, path, actions: ['read'], access_mask: '0x1', action: 'read' });
+    const r = await sendBatch({
+      batch_id: randomUUID(),
+      events: [
+        read(60, 'D:\\Shares\\Financeiro\\balanco.xlsx'),
+        read(61, 'D:\\Shares\\RH\\ferias.xlsx'),
+        read(62, 'E:\\Outro\\a.txt'),
+        { ...sampleEvent, record_id: 63, action: 'modified' },
+      ],
+    });
+    const body = await r.json();
+    assert.deepEqual([body.received, body.inserted, body.filtered], [4, 2, 2]);
+    const { rows } = await pg.query(
+      `SELECT source_record_id::int AS rid FROM events.file_events WHERE agent_id = $1 AND source_record_id BETWEEN 60 AND 63 ORDER BY 1`,
+      [agentId],
+    );
+    assert.deepEqual(rows.map((x) => x.rid), [61, 63]);
+    await prisma.auditedPath.deleteMany({ where: { agentId } });
   });
 
   it('recusa lote malformado', async () => {

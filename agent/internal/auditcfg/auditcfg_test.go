@@ -369,6 +369,41 @@ func TestExclusionsGlob(t *testing.T) {
 	}
 }
 
+func TestReadAllowed(t *testing.T) {
+	var x Exclusions
+	if !x.ReadAllowed(`D:\Dados\a.txt`) {
+		t.Fatal("antes da configuração tudo passa")
+	}
+	x.set([]PathConfig{
+		{Path: `D:\Dados`, State: "active", Recursive: true, AuditRead: true},
+		{Path: `D:\Dados\Financeiro`, State: "active", Recursive: true, AuditRead: false},
+		{Path: `E:\Publico`, State: "active", Recursive: false, AuditRead: true},
+		{Path: `F:\Antigo`, State: "removed", Recursive: true, AuditRead: true},
+		{Path: "/srv/rh", State: "active", Recursive: true, AuditRead: false},
+	})
+	for path, want := range map[string]bool{
+		`D:\Dados\a.txt`:                   true,
+		`d:\dados\sub\a.txt`:               true,
+		`D:\Dados\Financeiro\balanco.xlsx`: false, // o mais específico vale
+		`D:\Dados\FINANCEIRO\x\y.doc`:      false,
+		`D:\Dados\Financeiro2\a.txt`:       true,
+		`E:\Publico\a.txt`:                 true,
+		`E:\Publico\sub\a.txt`:             false, // fora: caminho sem subpastas
+		`F:\Antigo\a.txt`:                  false, // caminho removido
+		`C:\Windows\a.dll`:                 false,
+		"/srv/rh/folha.ods":                false,
+	} {
+		if got := x.ReadAllowed(path); got != want {
+			t.Errorf("ReadAllowed(%s) = %v", path, got)
+		}
+	}
+	var none Exclusions
+	none.set(nil)
+	if !none.ReadAllowed(`D:\x`) {
+		t.Error("sem caminhos configurados, nada é filtrado")
+	}
+}
+
 func TestDescribeEmptySACL(t *testing.T) {
 	msg := describe(ChangeEntry{Operation: "apply", Status: "applied", Path: fin,
 		Before: &AuditState{Policy: "Sistema de arquivos: sucesso e falha"},
