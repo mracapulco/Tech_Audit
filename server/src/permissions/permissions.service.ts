@@ -5,7 +5,7 @@ import type { AuthenticatedAgent } from '../ingest/agent-auth.guard.js';
 import { LicenseService } from '../licensing/license.service.js';
 import { permissionsInventoryAllowed } from '../licensing/plans.js';
 import { PrismaService } from '../prisma.service.js';
-import { clientFields, formatDateTime, serverList, type ReportColumn, type ReportField, type ReportTable } from '../reports/table.js';
+import { clientFields, serverList, type ReportColumn, type ReportField, type ReportTable } from '../reports/table.js';
 import { buildAppendix, type AppendixGroup, type GroupRecord } from './group-appendix.js';
 import type { GroupMemberRow, PermissionUpload } from './permissions-input.js';
 
