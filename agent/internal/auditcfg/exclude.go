@@ -95,6 +95,51 @@ func (x *Exclusions) InScope(path string, read bool) bool {
 	return false
 }
 
+// ReadAllowed diz se uma leitura nesse caminho deve ser enviada: vale a
+// opção "Auditar também leituras" do caminho auditado mais específico que o
+// contém. A SACL de uma pasta-pai, uma entrada antiga ou uma política do
+// Windows podem gerar leituras que o portal não pediu; elas são descartadas.
+// Antes da primeira resposta do portal, ou sem caminhos configurados, tudo
+// passa.
+func (x *Exclusions) ReadAllowed(path string) bool {
+	roots, known := x.Roots()
+	if !known || len(roots) == 0 || path == "" {
+		return true
+	}
+	best, allowed := -1, false
+	for _, r := range roots {
+		rel, sep, ok := relPath(path, r.Path)
+		if !ok || (!r.Recursive && strings.Contains(rel, sep)) {
+			continue
+		}
+		if n := len(r.Path); n > best {
+			best, allowed = n, r.AuditRead
+		}
+	}
+	return allowed
+}
+
+// relPath devolve o caminho relativo a root, se path estiver dentro dele.
+// No Windows sem diferenciar maiúsculas e aceitando / ou \; no Linux
+// (caminho começando com /) exato.
+func relPath(path, root string) (rel, sep string, ok bool) {
+	if !strings.HasPrefix(root, "/") {
+		path, root = slashes(strings.ToLower(path)), slashes(strings.ToLower(root))
+	}
+	sep = `\`
+	if strings.HasPrefix(root, "/") {
+		sep = "/"
+	}
+	root = strings.TrimRight(root, sep)
+	switch {
+	case path == root || path == root+sep:
+		return "", sep, true
+	case strings.HasPrefix(path, root+sep):
+		return path[len(root)+1:], sep, true
+	}
+	return "", sep, false
+}
+
 // Excluded: padrões sem "\" valem para qualquer nome de arquivo ou pasta
 // dentro do caminho auditado (ex.: *.tmp, ~$*, Temp); padrões com "\" são
 // subpastas relativas ao caminho auditado (ex.: Backup\Antigo).

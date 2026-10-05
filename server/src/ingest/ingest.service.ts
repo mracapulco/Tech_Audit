@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
+import { readAllowed, type ReadRoot } from '../auditcfg/paths.js';
 import { PgService } from '../db/pg.service.js';
 import type { AuthenticatedAgent } from './agent-auth.guard.js';
 import { type Heartbeat, identityKey, ParsedBatch } from './batch.js';
@@ -13,6 +14,8 @@ export interface IngestResult {
   inserted: number;
   duplicates: number;
   rejected: number;
+  // Leituras de caminhos com a auditoria de leitura desligada no portal.
+  filtered: number;
 }
 
 // Hash do caminho em minúsculas: o NTFS não diferencia maiúsculas.
@@ -66,12 +69,15 @@ export class IngestService {
           inserted: 0,
           duplicates: r.event_count,
           rejected: r.rejected_count,
+          filtered: 0,
         };
       }
 
-      const pathIds = await this.upsertPaths(client, agent, batch);
-      const identityIds = await this.upsertIdentities(client, agent, batch);
-      const inserted = await this.insertEvents(client, agent, batch, pathIds, identityIds);
+      const kept = await this.dropUnwantedReads(client, agent, batch);
+      const pathIds = await this.upsertPaths(client, agent, kept);
+      const identityIds = await this.upsertIdentities(client, agent, kept);
+      const inserted = await this.insertEvents(client, agent, kept, pathIds, identityIds);
+      const filtered = batch.events.length - kept.events.length;
 
       await client.query(
         'UPDATE ingest_batches SET inserted_count = $3 WHERE agent_id = $1 AND batch_id = $2',
@@ -83,8 +89,9 @@ export class IngestService {
         duplicate_batch: false,
         received: batch.events.length,
         inserted,
-        duplicates: batch.events.length - inserted,
+        duplicates: kept.events.length - inserted,
         rejected: batch.rejected.length,
+        filtered,
       };
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
@@ -92,6 +99,18 @@ export class IngestService {
     } finally {
       client.release();
     }
+  }
+
+  // Descarta leituras que o portal não pediu (ver readAllowed).
+  private async dropUnwantedReads(client: Client, agent: AuthenticatedAgent, batch: ParsedBatch): Promise<ParsedBatch> {
+    if (!batch.events.some((e) => e.action === 'read')) return batch;
+    const { rows } = await client.query<ReadRoot>(
+      `SELECT path_key AS "pathKey", recursive, audit_read AS "auditRead"
+       FROM audited_paths WHERE agent_id = $1 AND desired_state = 'active'`,
+      [agent.id],
+    );
+    const events = batch.events.filter((e) => e.action !== 'read' || readAllowed(e.path, rows));
+    return events.length === batch.events.length ? batch : { ...batch, events };
   }
 
   private async upsertPaths(client: Client, agent: AuthenticatedAgent, batch: ParsedBatch) {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { AgentInputError, parseResults, parseSizes } from '../src/auditcfg/agent-input.js';
-import { dedupedVolume, isWithin, normalizePath, parseExclusions, pathKey, PathError, volumeUsage } from '../src/auditcfg/paths.js';
+import { dedupedVolume, isWithin, normalizePath, parseExclusions, pathKey, PathError, readAllowed, volumeUsage } from '../src/auditcfg/paths.js';
 
 const ID = '0b5d6c2e-7a51-4c7e-9f0a-1d2e3f4a5b6c';
 
@@ -93,5 +93,33 @@ describe('corpos do agente', () => {
     ]);
     assert.throws(() => parseSizes({ paths: [{ path_id: ID, size_bytes: -1 }] }), AgentInputError);
     assert.throws(() => parseSizes({ paths: [{ path_id: ID }] }), AgentInputError);
+  });
+});
+
+describe('readAllowed', () => {
+  const roots = [
+    { pathKey: 'd:\\dados', recursive: true, auditRead: true },
+    { pathKey: 'd:\\dados\\financeiro', recursive: true, auditRead: false },
+    { pathKey: 'e:\\publico', recursive: false, auditRead: true },
+    { pathKey: '/srv/rh', recursive: true, auditRead: false },
+    { pathKey: '/srv/Docs', recursive: true, auditRead: true },
+  ];
+  it('vale a opção do caminho auditado mais específico', () => {
+    assert.equal(readAllowed('D:\\Dados\\a.txt', roots), true);
+    assert.equal(readAllowed('D:\\Dados\\Financeiro\\balanco.xlsx', roots), false);
+    assert.equal(readAllowed('d:/dados/FINANCEIRO/x/y.doc', roots), false);
+    assert.equal(readAllowed('D:\\Dados\\Financeiro2\\a.txt', roots), true);
+    assert.equal(readAllowed('/srv/rh/folha.ods', roots), false);
+    assert.equal(readAllowed('/srv/Docs/a.txt', roots), true);
+    assert.equal(readAllowed('/srv/docs/a.txt', roots), false);
+  });
+  it('respeita "sem subpastas" e descarta fora dos caminhos', () => {
+    assert.equal(readAllowed('E:\\Publico\\a.txt', roots), true);
+    assert.equal(readAllowed('E:\\Publico\\sub\\a.txt', roots), false);
+    assert.equal(readAllowed('C:\\Windows\\a.dll', roots), false);
+  });
+  it('servidor sem caminhos configurados não é filtrado', () => {
+    assert.equal(readAllowed('C:\\x.txt', []), true);
+    assert.equal(readAllowed(null, roots), true);
   });
 });

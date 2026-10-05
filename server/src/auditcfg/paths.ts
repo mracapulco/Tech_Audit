@@ -66,6 +66,39 @@ export function isWithin(childKey: string, parentKey: string): boolean {
   return childKey.startsWith(prefix);
 }
 
+// Caminho auditado ativo, para decidir se uma leitura recebida do agente entra.
+export interface ReadRoot {
+  pathKey: string;
+  recursive: boolean;
+  auditRead: boolean;
+}
+
+// Leitura só é gravada quando o caminho auditado mais específico que contém
+// o arquivo tem "Auditar também leituras" ligado. A SACL de uma pasta-pai,
+// uma entrada antiga ou uma política do Windows podem gerar leituras que o
+// portal não pediu (agentes até 0.5.0 não filtram no Windows). Servidor sem
+// caminhos configurados não é filtrado.
+export function readAllowed(eventPath: string | null, roots: ReadRoot[]): boolean {
+  if (roots.length === 0 || !eventPath) return true;
+  const linux = eventPath.startsWith('/');
+  const sep = linux ? '/' : '\\';
+  let key = linux ? eventPath : eventPath.replace(/\//g, '\\').toLowerCase();
+  if (key.length > 1 && key.endsWith(sep) && !/^[a-z]:\\$/.test(key)) key = key.slice(0, -1);
+  let best = -1;
+  let allowed = false;
+  for (const r of roots) {
+    if (r.pathKey.startsWith('/') !== linux || !isWithin(key, r.pathKey)) continue;
+    const prefix = r.pathKey.endsWith(sep) ? r.pathKey : r.pathKey + sep;
+    const rest = key === r.pathKey ? '' : key.slice(prefix.length);
+    if (!r.recursive && rest.includes(sep)) continue;
+    if (r.pathKey.length > best) {
+      best = r.pathKey.length;
+      allowed = r.auditRead;
+    }
+  }
+  return allowed;
+}
+
 // Volume auditado de um servidor: soma só dos caminhos que não estão dentro
 // de outro caminho auditado, para não contar duas vezes.
 export function dedupedVolume(paths: { pathKey: string; sizeBytes: bigint | null }[]): bigint {
